@@ -1,11 +1,12 @@
 import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-	plugins: [sveltekit()],
+	plugins: [tailwindcss(), sveltekit()],
 	server: {
 		watch: {
-			usePolling: true, // Force la détection des changements dans Docker
+			usePolling: true // Force la détection des changements dans Docker
 		},
 		host: true, // Équivalent de --host
 		strictPort: true,
