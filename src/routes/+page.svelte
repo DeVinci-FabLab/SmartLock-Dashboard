@@ -2,10 +2,6 @@
   // ─── Imports shadcn-svelte ─────────────────────────────────────────────────
   import { Button } from "$lib/components/ui/button";
   import * as Card from "$lib/components/ui/card";
-  import { Badge } from "$lib/components/ui/badge";
-  import * as Table from "$lib/components/ui/table";
-  import * as Tabs from "$lib/components/ui/tabs";
-  import { Avatar, AvatarFallback } from "$lib/components/ui/avatar";
 
   let count = $state(0);
 
