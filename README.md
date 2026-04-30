@@ -46,18 +46,10 @@ Dans les cas suivants, on considère que l'accès de l'utilisateur à la page/au
  
 ## Visuels nécessaires
 
-Une fois l'utilisateur authentifié, les actions qu'il pourra effectuer peuvent être regroupées en 2 catégories :
-* Les actions relatives aux armoires.
-* Les actions relatives aux rôles.
+Une fois l'utilisateur authentifié, les fonctionnalités disponibles varient en fonction de ses permissions.
 
-Comme la plupart des utilisateurs n'aura pas de permissions relatives aux rôles, et que les actions relatives aux rôles seront effectuées moins souvent que celles relatives aux armoires, il a été convenu que la page principale une fois l'utilisateur connecté sera celle des armoires.
-Les différentes pages du site seront donc :
-* Une page d'authentification
-* Une page d'accueil une fois que l'utilisateur est authentifié, qui est donc la page de gestion des armoires, cette page contiendra :
-  * Un composant pour chaque armoire
-  * Un bouton pour ajouter une armoire
-* Une page pour chaque armoire (décrite dans la partie contraintes de connexion)
-* Une page de gestion des rôles, cette page contiendra :
-  * Un composant pour chaque rôle
-  * Un composant pour ajouter un rôle
-* Une page pour chaque rôle (décrite dans la partie contraintes de connexion)
+* Rôles membre, 3D, électronique, textile : sur le dashboard, ces 4 rôles ont les mêmes permissions, consulter les stocks des armoires à filament, des armoires électroniques et des armoires textiles. Il y aura donc un bloc pour chaque armoire auxquelles ces utilisateurs ont accès, et si une armoire est sélectionnée, une page affichera les détails des stocks de l'armoire.
+* Rôle matérialiste : le matérialiste peut consulter les stocks des armoires à filament, des armoires électroniques, des armoires textile et des armoires bureau. Il peut aussi créer et supprimer des types d'item à l'intérieur de ces armoires. De même que pour les rôles précedemment cités, il y aura un bloc par armoire, mais lorsque l'une d'elles sera sélectionnée, la page spécifique à l'armoire affichera aussi un bouton pour ajouter des types d'items et un bouton à côté de chaque type d'item pour le supprimer (possible seulement s'il est en quantité 0). Le matérialiste peut aussi donner/révoquer les rôles membre et 3D, il pourra donc naviguer entre une page "Armoires" décrite ci dessus et une page "Rôles" où il pourra sélectionner un rôle parmi membre et 3D et y ajouter et supprimer des utilisateurs.
+* Rôle codir : le codir a les mêmes permissions que le matérialiste à l'exception qu'il peut également donner et révoquer les rôles électronique, textile et matérialiste. Il peut par ailleurs donner à soi-même ou à un autre le rôle admin. Sur le dashboard, la page "Armoires" sera donc la même que pour le rôle matérialiste, et pour la page "Rôles", il sera possible de donner/révoquer les rôles membre, 3D, électronique, textile et matérialiste aux utilisateurs et de donner le rôle admin. Sous les blocs correspondant à chaque rôle, il y aura un bouton supplémentaire pour que l'utilisateur se donne le rôle admin pour une durée limitée.
+* Rôle admin : sur la page "Armoires", l'admin a les mêmes permissions que le matérialiste et le codir à l'excepetion qu'il peut aussi ajouter/supprimer des armoires, il a donc un bouton "supprimer" présent sur la page de chaque armoire (uniquement possible si celle-ci est vide), et un bouton en bas de la page "Armoires" pour ajouter une nouvelle armoire. Sur la page "Rôles", l'admin peut donner et révoquer les rôles membre, 3D, électronique, textile, matérialiste et codir, il peut aussi donner le rôle admin. De même que pour le codir qui peut se donner le rôle admin, l'admin peut renoncer à son rôle grâce à un bouton situé en bas de la page "Rôles". Par ailleurs, l'admin peut supprimer les rôles, donc chaque page de rôle aura un bouton "supprimer" (uniquement possible si personne n'a le rôle, il est donc par conséquent impossible de supprimer le rôle admin), l'admin peut également créer un nouveau rôle grâce à un bouton présent sous les blocs des rôles. Enfin, l'admin peut modifier les permissions des rôles, il y aura donc un bouton "modifier les permissions" sur la page de chaque rôle qui une fois sélectionné permettra de cocher les différentes permissions pour les donner ou non au rôle.
+
