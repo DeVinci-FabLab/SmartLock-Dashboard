@@ -1,0 +1,19 @@
+# Compose de développement — HMR actif via bind mount.
+# Lancer depuis la racine : make docker-dev
+
+name: smartlock-dashboard
+
+services:
+  smartlock-dashboard:
+    build:
+      context: ../web
+      dockerfile: ../docker/Dockerfile.dev
+    container_name: smartlock-dashboard-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../web:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true

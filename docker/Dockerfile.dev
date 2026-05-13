@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1.7
+# Image de développement — Vite dev server avec HMR.
+# Le code source est monté en bind via compose pour le hot reload.
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Installation des dépendances en premier (couche cache)
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copie de fallback si le bind mount n'est pas utilisé
+COPY . .
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

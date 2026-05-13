@@ -1,0 +1,18 @@
+# Compose de production — image construite, pas de bind mount.
+# Prérequis : web/svelte.config.js doit utiliser @sveltejs/adapter-node.
+# Lancer depuis la racine : make docker-prod
+
+name: smartlock-dashboard
+
+services:
+  smartlock-dashboard:
+    build:
+      context: ../web
+      dockerfile: ../docker/Dockerfile
+    container_name: smartlock-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped

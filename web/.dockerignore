@@ -1,0 +1,43 @@
+# Node
+node_modules
+npm-debug.log*
+
+# Outputs SvelteKit / Vite
+.svelte-kit
+build
+.output
+.vercel
+.netlify
+.wrangler
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env (jamais copier de secrets dans l'image)
+.env
+.env.*
+!.env.example
+
+# Méta / docs (inutiles dans l'image)
+README.md
+CDC.md
+decision-plan.md
+LICENSE
+Makefile
+
+# Docker (éviter la récursion)
+docker
+.dockerignore

@@ -1,55 +1,267 @@
-## Cahier des charges
+# SmartLock Dashboard
 
-### Mandatory
+Tableau de bord interne pour la gestion des armoires connectées, des stocks, des rôles et de l'historique d'actions du **Devinci Fablab**.
 
-* Une WhiteList d'utilisateurs doit être créée pour permettre à certains badges d'ouvrir l'armoire.
-* Le système de stockage numérique doit permettre l’utilisation de 25 items différents, tout en étant dimensionné pour en accueillir jusqu’à 100.
-* Un historique des actions effectuées sur les stocks doit être créé, consultable et sauvegardé automatiquement.
-* L'historique ne doit pas être effaçable (sauf par président et commité de contrôle) - point de discussion acces reu respo technique.
-* Un panneau de contrôle tactile doit permettre de consulter et mettre à jour les stocks sur l'armoire.
-* L'interface doit être graphiquement travaillée (front end) validée par les membres du Devinci Fablab (bureau).
+> Outil interne, multi-rôles, avec authentification SSO (Keycloak), historique non altérable, panneau de contrôle tactile sur l'armoire, et affichage public à venir.
 
-### Important
+---
 
-* Des groupes d'utilisateurs doivent pouvoir être créés, et que chacun de ces groupes ait ses permissions et accès
-* La WhiteList doit être modifiable par les personnes autorisées (point en début d'année) / CoDir et membres smartlock  
-* Le systeme de stockage numérique doit comprendre tous les items présents dans l'armoire qui abrite le systeme
+## Sommaire
 
-## Contraintes de connexion
+- [Contexte](#contexte)
+- [Intention](#intention)
+- [Stack technique](#stack-technique)
+- [Décisions clés](#décisions-clés)
+- [Architecture](#architecture)
+- [Structure du projet](#structure-du-projet)
+- [Roadmap](#roadmap)
+- [Démarrage rapide](#démarrage-rapide)
+- [Installation détaillée](#installation-détaillée)
+- [Commandes Make](#commandes-make)
+- [Variables d'environnement](#variables-denvironnement)
+- [Documents de référence](#documents-de-référence)
+- [Licence](#licence)
 
-Il doit donc exister une base de données contenant : 
-* Le nom, le rôle, le mot de passe et l'identifiant de badge étudiant de tous les utimisateurs
-* La liste des permissions associées à chaque rôle
-* La liste des armoires avec les items  associés et leur quantité
-* La liste des logs (l'historique des actions).
+---
 
-Cette base de données sera consultée à plusieurs occasions :
+## Contexte
 
-* Lors de l'authentification de l'utilisateur
-  * Son nom
-  * Son mot de passe
-* Lorsque l'utilisateur arrive sur la page principale (une fois qu'il est authentifié)
-  * Som nom pour l'afficher dans un message de bienvenue
-  * Les permissions de son rôle pour déterminer les composants auxquels il a accès
+Le Devinci Fablab dispose d'armoires connectées dont l'accès est contrôlé par badge étudiant. Chaque armoire contient un inventaire d'items (filaments, composants électroniques, textiles, fournitures de bureau, etc.). Le besoin :
 
-Dans les cas suivants, on considère que l'accès de l'utilisateur à la page/au composant en question est déjà validé car il est déjà authentifié, les permissions de son rôle ne seront donc pas consultées à ces fins.
+- Gérer un **inventaire** dimensionné jusqu'à 100 types d'items par armoire.
+- Tracer **toutes les actions** (entrée, sortie, modification) dans un historique non altérable.
+- Contrôler l'accès aux armoires via une **WhiteList** dérivée des rôles utilisateur.
+- Permettre à des **rôles distincts** (membre, 3D, électronique, textile, matérialiste, codir, admin) d'avoir des permissions différenciées sur l'UI.
+- Offrir un **panneau tactile** sur l'armoire elle-même pour consulter et mettre à jour les stocks.
+- Préparer un **affichage public** (kiosque) pour communiquer l'état du fablab.
 
-* Pour afficher une page "armoire"
-  * Le nom de l'armoire
-  * La liste des items de l'armoire et leur quantité
-  * La liste des utilisateurs ayant accès à l'armoire
-  * L'historique des actions effectuées sur l'armoire
-* Pour afficher une page "rôle"
-  * Le nom du rôle
-  * La liste des permissions du rôle
-  * La liste des utilisateurs possédant le rôle
- 
-## Visuels nécessaires
+Le cahier des charges complet et les variations par rôle sont décrits dans [`CDC.md`](./CDC.md).
 
-Une fois l'utilisateur authentifié, les fonctionnalités disponibles varient en fonction de ses permissions.
+## Intention
 
-* Rôles membre, 3D, électronique, textile : sur le dashboard, ces 4 rôles ont les mêmes permissions, consulter les stocks des armoires à filament, des armoires électroniques et des armoires textiles. Il y aura donc un bloc pour chaque armoire auxquelles ces utilisateurs ont accès, et si une armoire est sélectionnée, une page affichera les détails des stocks de l'armoire.
-* Rôle matérialiste : le matérialiste peut consulter les stocks des armoires à filament, des armoires électroniques, des armoires textile et des armoires bureau. Il peut aussi créer et supprimer des types d'item à l'intérieur de ces armoires. De même que pour les rôles précedemment cités, il y aura un bloc par armoire, mais lorsque l'une d'elles sera sélectionnée, la page spécifique à l'armoire affichera aussi un bouton pour ajouter des types d'items et un bouton à côté de chaque type d'item pour le supprimer (possible seulement s'il est en quantité 0). Le matérialiste peut aussi donner/révoquer les rôles membre et 3D, il pourra donc naviguer entre une page "Armoires" décrite ci dessus et une page "Rôles" où il pourra sélectionner un rôle parmi membre et 3D et y ajouter et supprimer des utilisateurs.
-* Rôle codir : le codir a les mêmes permissions que le matérialiste à l'exception qu'il peut également donner et révoquer les rôles électronique, textile et matérialiste. Il peut par ailleurs donner à soi-même ou à un autre le rôle admin. Sur le dashboard, la page "Armoires" sera donc la même que pour le rôle matérialiste, et pour la page "Rôles", il sera possible de donner/révoquer les rôles membre, 3D, électronique, textile et matérialiste aux utilisateurs et de donner le rôle admin. Sous les blocs correspondant à chaque rôle, il y aura un bouton supplémentaire pour que l'utilisateur se donne le rôle admin pour une durée limitée.
-* Rôle admin : sur la page "Armoires", l'admin a les mêmes permissions que le matérialiste et le codir à l'excepetion qu'il peut aussi ajouter/supprimer des armoires, il a donc un bouton "supprimer" présent sur la page de chaque armoire (uniquement possible si celle-ci est vide), et un bouton en bas de la page "Armoires" pour ajouter une nouvelle armoire. Sur la page "Rôles", l'admin peut donner et révoquer les rôles membre, 3D, électronique, textile, matérialiste et codir, il peut aussi donner le rôle admin. De même que pour le codir qui peut se donner le rôle admin, l'admin peut renoncer à son rôle grâce à un bouton situé en bas de la page "Rôles". Par ailleurs, l'admin peut supprimer les rôles, donc chaque page de rôle aura un bouton "supprimer" (uniquement possible si personne n'a le rôle, il est donc par conséquent impossible de supprimer le rôle admin), l'admin peut également créer un nouveau rôle grâce à un bouton présent sous les blocs des rôles. Enfin, l'admin peut modifier les permissions des rôles, il y aura donc un bouton "modifier les permissions" sur la page de chaque rôle qui une fois sélectionné permettra de cocher les différentes permissions pour les donner ou non au rôle.
+- **Outil interne maintenu par l'équipe**, pas un livrable client : les choix techniques privilégient la productivité de l'équipe et la maintenabilité long terme sur la transférabilité.
+- **Évolutif** : démarrer sur la gestion d'inventaire, puis étendre vers d'autres outils internes du fablab, l'affichage public et le panneau tactile sur l'armoire — sur la même base technique.
+- **Explicite plutôt que magique** : on privilégie les stacks où le code écrit est le code qui tourne (débogage facile, reprise par d'autres contributeurs étudiants).
+- **Possession du code UI** : composants copiés dans le projet (style shadcn), zéro lock-in sur une bibliothèque tierce.
 
+## Stack technique
+
+| Couche | Choix | Justification courte |
+|---|---|---|
+| Meta-framework | **SvelteKit** (Svelte 5 + runes) | SSR explicite, file-based routing, hooks server, déploiement Node simple |
+| UI / composants | **shadcn-svelte** + **bits-ui** | Composants copiés, zéro dépendance UI tierce |
+| Styles | **Tailwind CSS v4** | Système de design utilitaire, aligné avec shadcn |
+| Icônes | **Lucide** (`@lucide/svelte`) | Set d'icônes cohérent, léger |
+| Auth | **Keycloak** (OIDC) via `@auth/sveltekit` ou `arctic` | SSO interne, gestion centralisée des comptes étudiants |
+| Base de données | **PostgreSQL** (à intégrer) | Transactions, JSONB, row-level security pour l'audit |
+| ORM | **Drizzle** (à intégrer) | SQL-first, type-safe, philosophie explicite |
+| Validation | **Zod** (à intégrer) | Schémas partagés client / serveur |
+| Build / dev | **Vite 7** | HMR rapide, config minimale |
+| Conteneurisation | **Docker** + Docker Compose | Dev reproductible, déploiement self-hosted |
+
+Le raisonnement détaillé derrière ces choix (et les alternatives écartées) est documenté dans [`decision-plan.md`](./decision-plan.md).
+
+## Décisions clés
+
+- **SvelteKit plutôt que Next.js**. Le projet est un outil interne maintenu par l'équipe sur la durée. L'argument "transférable à n'importe quel dev React" pèse moins que "moins de magie cachée, plus facile à reprendre pour un contributeur étudiant". SvelteKit a une séparation client / serveur explicite (`+page.svelte` vs `+page.server.ts`) sans Server Components ni cache defaults qui changent entre versions.
+- **shadcn-svelte accepté comme exception**. Le doc de décision globale exclut les ports communautaires de shadcn ; `shadcn-svelte` (basé sur `bits-ui`) est l'exception documentée pour ce projet, car suffisamment mature et adopté.
+- **PostgreSQL + audit append-only**. L'historique des actions doit être non altérable. Implémentation prévue : table `audit_log` en append-only, le rôle DB applicatif n'a pas les droits `DELETE` ni `UPDATE` dessus. Les exceptions (président / comité de contrôle) passent par un rôle DB séparé.
+- **Permissions comme données, pas comme code**. Plutôt que de coder en dur `if (role === 'codir')`, les permissions sont stockées en DB (`role` → `permissions[]`), chargées dans `hooks.server.ts` à la connexion, et l'UI est gardée par clé de permission (`armoire:create`, `role:grant:admin`). Conséquence : ajouter un rôle = insérer une ligne, pas refactor.
+- **Keycloak en SSO**. L'auth n'est pas faite dans l'app : Keycloak est la source de vérité. L'app valide la session côté serveur dans `hooks.server.ts`, mappe les claims Keycloak vers les permissions internes.
+- **Self-hosted via Docker**. Pas de Vercel ni de cloud serverless : l'infra reste dans le fablab. `adapter-node` + image Docker Node sur un VPS / serveur interne.
+
+## Architecture
+
+```
+┌──────────────────┐         ┌──────────────────┐
+│  Panneau tactile │         │   Affichage      │
+│  (kiosque        │         │   public         │
+│  Chromium)       │         │   (kiosque)      │
+└────────┬─────────┘         └─────────┬────────┘
+         │                             │
+         ▼                             ▼
+┌─────────────────────────────────────────────────┐
+│              SmartLock Dashboard                │
+│        (SvelteKit, adapter-node, Docker)        │
+│                                                 │
+│  hooks.server.ts  →  session Keycloak           │
+│  +page.server.ts  →  load DB (Drizzle)          │
+│  +page.svelte     →  UI (shadcn-svelte)         │
+└──────────┬─────────────────────────┬────────────┘
+           │                         │
+           ▼                         ▼
+   ┌──────────────┐          ┌──────────────┐
+   │   Keycloak   │          │  PostgreSQL  │
+   │  (OIDC SSO)  │          │ (data+audit) │
+   └──────────────┘          └──────────────┘
+```
+
+## Structure du projet
+
+Le code applicatif est isolé dans `web/`. La racine ne contient que des éléments transverses (docs, Make, Docker, ignores). Cela permet d'ajouter facilement d'autres composants à côté plus tard (ex : `firmware/`, `infra/`, `docs/`) sans réorganiser.
+
+```
+.
+├── docker/                  Dockerfiles et compose (dev + prod)
+│   ├── Dockerfile           Image de production (multi-stage, adapter-node)
+│   ├── Dockerfile.dev       Image de dev (Vite HMR)
+│   ├── compose.yaml         Compose dev (context: ../web, bind mount + HMR)
+│   └── compose.prod.yaml    Compose prod (context: ../web, restart policy)
+├── web/                     Projet SvelteKit (tout le code applicatif)
+│   ├── src/
+│   │   ├── routes/          Routes SvelteKit (file-based)
+│   │   │   ├── +layout.svelte
+│   │   │   ├── +page.svelte
+│   │   │   └── Main/        Section principale (à structurer)
+│   │   ├── lib/
+│   │   │   ├── components/ui/   Composants shadcn-svelte (copiés, modifiables)
+│   │   │   ├── assets/          Logos, favicon
+│   │   │   └── utils.ts         Helpers UI (cn, clsx)
+│   │   ├── app.html         Template HTML racine
+│   │   ├── app.css          CSS global (Tailwind import)
+│   │   └── app.d.ts         Types globaux SvelteKit
+│   ├── static/              Assets servis tels quels
+│   ├── components.json      Config shadcn-svelte
+│   ├── svelte.config.js     Config SvelteKit (adapter, runes)
+│   ├── vite.config.ts       Config Vite (HMR Docker-friendly)
+│   ├── tsconfig.json        Config TypeScript
+│   ├── package.json
+│   ├── .npmrc
+│   └── .dockerignore        Lu par Docker au build (contexte = web/)
+├── CDC.md                   Cahier des charges (besoins métier)
+├── decision-plan.md         Justification de la stack
+├── README.md                Ce fichier
+├── Makefile                 Commandes raccourcies (opère dans web/ via npm --prefix)
+├── LICENSE
+└── .gitignore
+```
+
+> Note : `.dockerignore` vit dans `web/` car Docker lit son `.dockerignore` à la racine du contexte de build (qui est `web/`, pas la racine du repo). C'est la convention.
+
+## Roadmap
+
+Construit incrémentalement, une couche à la fois :
+
+1. **MVP UI navigable** (en cours, branche `draft-layout`) — layouts, composants shadcn-svelte, navigation entre pages "Armoires" et "Rôles", données statiques.
+2. **Auth Keycloak** — intégration OIDC, sessions cookies, garde de routes, mapping claims → rôles internes.
+3. **PostgreSQL + Drizzle** — schéma `users`, `roles`, `permissions`, `armoires`, `items`, `audit_log` ; rôles DB séparés (applicatif vs élevé).
+4. **Permissions data-driven** — chargement des permissions en session, gates UI par clé, gates server par middleware.
+5. **CRUD inventaire** — affichage, ajout, suppression d'items et types d'items selon rôle.
+6. **Historique** — vue audit consultable, filtres par armoire/utilisateur/date, immuabilité garantie au niveau DB.
+7. **Panneau tactile** — vue dédiée optimisée écran tactile (UI gros boutons, pas d'interaction clavier requise).
+8. **Affichage public** — section `/display/*` sans auth, read-only, kiosque (autorefresh, plein écran).
+9. **Outils additionnels** — autres modules métier du fablab sur la même base.
+
+## Démarrage rapide
+
+```bash
+# 1. Cloner et entrer dans le dossier
+git clone <url> SmartLock-Dashboard && cd SmartLock-Dashboard/draft-layout
+
+# 2. Installer les dépendances
+make install
+
+# 3. Lancer en dev (http://localhost:5173)
+make dev
+```
+
+Ou via Docker (recommandé pour reproduire l'environnement) :
+
+```bash
+make docker-dev
+```
+
+## Installation détaillée
+
+### Prérequis
+
+- **Node.js 20+** et **npm**
+- **Docker** + **Docker Compose v2** (optionnel mais recommandé)
+- **GNU Make** (préinstallé sur macOS/Linux ; Windows : via WSL ou Chocolatey)
+
+### Installation locale (sans Docker)
+
+```bash
+make install     # npm install
+make dev         # serveur de dev sur :5173
+make check       # vérification des types Svelte / TypeScript
+```
+
+### Installation avec Docker
+
+Le développement en conteneur garantit que tous les contributeurs travaillent avec la même version de Node, sans toucher leur installation locale. Le code est monté en bind mount, le HMR fonctionne normalement.
+
+```bash
+make docker-dev          # build + up, attaché aux logs
+make docker-dev-detached # idem mais en arrière-plan
+make docker-logs         # suivre les logs du conteneur
+make docker-down         # arrêt
+```
+
+### Préparation production (à venir)
+
+Le `docker/Dockerfile` de production existe mais nécessite de passer à `@sveltejs/adapter-node` (actuellement `adapter-auto`) :
+
+```bash
+npm --prefix web install -D @sveltejs/adapter-node
+```
+
+Puis modifier `web/svelte.config.js` :
+
+```js
+import adapter from '@sveltejs/adapter-node';
+// ...
+kit: { adapter: adapter() }
+```
+
+Ensuite :
+
+```bash
+make docker-prod         # build + lance l'image de prod sur :3000
+make docker-prod-down    # arrêt
+```
+
+## Commandes Make
+
+`make help` (ou simplement `make`) affiche la liste complète. Résumé :
+
+| Catégorie | Cible | Effet |
+|---|---|---|
+| Dev local | `install` | Installe les dépendances npm |
+| Dev local | `dev` | Lance Vite sur `:5173` |
+| Dev local | `build` | Build de production (requiert adapter-node) |
+| Dev local | `preview` | Sert le build de production localement |
+| Dev local | `check` | Vérifie le typage Svelte / TS |
+| Docker | `docker-dev` | Lance l'app en conteneur (HMR) |
+| Docker | `docker-dev-detached` | Idem en arrière-plan |
+| Docker | `docker-logs` | Logs du conteneur de dev |
+| Docker | `docker-down` | Arrête le conteneur de dev |
+| Docker | `docker-prod-build` | Build l'image de production |
+| Docker | `docker-prod` | Lance la prod en arrière-plan |
+| Docker | `docker-prod-down` | Arrête la prod |
+| Nettoyage | `clean` | Supprime `node_modules`, `.svelte-kit`, `build` |
+| Nettoyage | `clean-docker` | Supprime conteneurs, volumes et images locaux |
+
+## Variables d'environnement
+
+Aucune n'est nécessaire pour démarrer en dev sur l'UI seule. Au fur et à mesure que les couches s'ajoutent, créer un `web/.env` (non commité — SvelteKit lit le `.env` depuis la racine du projet, qui est `web/`) :
+
+```dotenv
+# À venir, exemples
+DATABASE_URL=postgres://user:pass@localhost:5432/smartlock
+KEYCLOAK_ISSUER=https://keycloak.devinci.fr/realms/fablab
+KEYCLOAK_CLIENT_ID=smartlock-dashboard
+KEYCLOAK_CLIENT_SECRET=...
+AUTH_SECRET=...
+```
+
+Un `web/.env.example` sera maintenu pour documenter les variables attendues.
+
+## Documents de référence
+
+- [`CDC.md`](./CDC.md) — cahier des charges, rôles, permissions, contraintes métier.
+- [`decision-plan.md`](./decision-plan.md) — justification détaillée de la stack et grille de décision pour les autres projets de l'équipe.
+
+## Licence
+
+Voir [`LICENSE`](./LICENSE).
