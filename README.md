@@ -8,19 +8,25 @@ Tableau de bord interne pour la gestion des armoires connectées, des stocks, de
 
 ## Sommaire
 
-- [Contexte](#contexte)
-- [Intention](#intention)
-- [Stack technique](#stack-technique)
-- [Décisions clés](#décisions-clés)
-- [Architecture](#architecture)
-- [Structure du projet](#structure-du-projet)
-- [Roadmap](#roadmap)
-- [Démarrage rapide](#démarrage-rapide)
-- [Installation détaillée](#installation-détaillée)
-- [Commandes Make](#commandes-make)
-- [Variables d'environnement](#variables-denvironnement)
-- [Documents de référence](#documents-de-référence)
-- [Licence](#licence)
+- [SmartLock Dashboard](#smartlock-dashboard)
+  - [Sommaire](#sommaire)
+  - [Contexte](#contexte)
+  - [Intention](#intention)
+  - [Stack technique](#stack-technique)
+  - [Décisions clés](#décisions-clés)
+  - [Architecture](#architecture)
+  - [Structure du projet](#structure-du-projet)
+  - [Roadmap](#roadmap)
+  - [Démarrage rapide](#démarrage-rapide)
+  - [Installation détaillée](#installation-détaillée)
+    - [Prérequis](#prérequis)
+    - [Installation locale (sans Docker)](#installation-locale-sans-docker)
+    - [Installation avec Docker](#installation-avec-docker)
+    - [Préparation production (à venir)](#préparation-production-à-venir)
+  - [Commandes Make](#commandes-make)
+  - [Variables d'environnement](#variables-denvironnement)
+  - [Documents de référence](#documents-de-référence)
+  - [Licence](#licence)
 
 ---
 
@@ -30,8 +36,8 @@ Le Devinci Fablab dispose d'armoires connectées dont l'accès est contrôlé pa
 
 - Gérer un **inventaire** dimensionné jusqu'à 100 types d'items par armoire.
 - Tracer **toutes les actions** (entrée, sortie, modification) dans un historique non altérable.
-- Contrôler l'accès aux armoires via une **WhiteList** dérivée des rôles utilisateur.
-- Permettre à des **rôles distincts** (membre, 3D, électronique, textile, matérialiste, codir, admin) d'avoir des permissions différenciées sur l'UI.
+- Contrôler l'accès aux armoires et aux fonctionnalités via une **matrice de contrôle d'accès par rôle**, organisée en couches (Zero Trust) : visibilité → usage → délégation de rôles → administration. Aucun droit n'est implicite ; chaque action passe par une permission explicitement accordée. Ce n'est pas une whitelist plate "qui est dedans peut tout faire" — le terme "whitelist" du CDC d'origine désigne en pratique cette matrice de permissions.
+- Définir des **rôles hiérarchisés** (membre, 3D, électronique, textile, matérialiste, codir, admin) où chaque rôle ajoute un sous-ensemble de permissions explicites au précédent. L'UI est gardée par clé de permission, pas par test de nom de rôle.
 - Offrir un **panneau tactile** sur l'armoire elle-même pour consulter et mettre à jour les stocks.
 - Préparer un **affichage public** (kiosque) pour communiquer l'état du fablab.
 
@@ -46,18 +52,18 @@ Le cahier des charges complet et les variations par rôle sont décrits dans [`C
 
 ## Stack technique
 
-| Couche | Choix | Justification courte |
-|---|---|---|
-| Meta-framework | **SvelteKit** (Svelte 5 + runes) | SSR explicite, file-based routing, hooks server, déploiement Node simple |
-| UI / composants | **shadcn-svelte** + **bits-ui** | Composants copiés, zéro dépendance UI tierce |
-| Styles | **Tailwind CSS v4** | Système de design utilitaire, aligné avec shadcn |
-| Icônes | **Lucide** (`@lucide/svelte`) | Set d'icônes cohérent, léger |
-| Auth | **Keycloak** (OIDC) via `@auth/sveltekit` ou `arctic` | SSO interne, gestion centralisée des comptes étudiants |
-| Base de données | **PostgreSQL** (à intégrer) | Transactions, JSONB, row-level security pour l'audit |
-| ORM | **Drizzle** (à intégrer) | SQL-first, type-safe, philosophie explicite |
-| Validation | **Zod** (à intégrer) | Schémas partagés client / serveur |
-| Build / dev | **Vite 7** | HMR rapide, config minimale |
-| Conteneurisation | **Docker** + Docker Compose | Dev reproductible, déploiement self-hosted |
+| Couche           | Choix                                                 | Justification courte                                                     |
+| ---------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| Meta-framework   | **SvelteKit** (Svelte 5 + runes)                      | SSR explicite, file-based routing, hooks server, déploiement Node simple |
+| UI / composants  | **shadcn-svelte** + **bits-ui**                       | Composants copiés, zéro dépendance UI tierce                             |
+| Styles           | **Tailwind CSS v4**                                   | Système de design utilitaire, aligné avec shadcn                         |
+| Icônes           | **Lucide** (`@lucide/svelte`)                         | Set d'icônes cohérent, léger                                             |
+| Auth             | **Keycloak** (OIDC) via `@auth/sveltekit` ou `arctic` | SSO interne, gestion centralisée des comptes étudiants                   |
+| Base de données  | **PostgreSQL** (à intégrer)                           | Transactions, JSONB, row-level security pour l'audit                     |
+| ORM              | **Drizzle** (à intégrer)                              | SQL-first, type-safe, philosophie explicite                              |
+| Validation       | **Zod** (à intégrer)                                  | Schémas partagés client / serveur                                        |
+| Build / dev      | **Vite 7**                                            | HMR rapide, config minimale                                              |
+| Conteneurisation | **Docker** + Docker Compose                           | Dev reproductible, déploiement self-hosted                               |
 
 Le raisonnement détaillé derrière ces choix (et les alternatives écartées) est documenté dans [`decision-plan.md`](./decision-plan.md).
 
@@ -66,13 +72,13 @@ Le raisonnement détaillé derrière ces choix (et les alternatives écartées) 
 - **SvelteKit plutôt que Next.js**. Le projet est un outil interne maintenu par l'équipe sur la durée. L'argument "transférable à n'importe quel dev React" pèse moins que "moins de magie cachée, plus facile à reprendre pour un contributeur étudiant". SvelteKit a une séparation client / serveur explicite (`+page.svelte` vs `+page.server.ts`) sans Server Components ni cache defaults qui changent entre versions.
 - **shadcn-svelte accepté comme exception**. Le doc de décision globale exclut les ports communautaires de shadcn ; `shadcn-svelte` (basé sur `bits-ui`) est l'exception documentée pour ce projet, car suffisamment mature et adopté.
 - **PostgreSQL + audit append-only**. L'historique des actions doit être non altérable. Implémentation prévue : table `audit_log` en append-only, le rôle DB applicatif n'a pas les droits `DELETE` ni `UPDATE` dessus. Les exceptions (président / comité de contrôle) passent par un rôle DB séparé.
-- **Permissions comme données, pas comme code**. Plutôt que de coder en dur `if (role === 'codir')`, les permissions sont stockées en DB (`role` → `permissions[]`), chargées dans `hooks.server.ts` à la connexion, et l'UI est gardée par clé de permission (`armoire:create`, `role:grant:admin`). Conséquence : ajouter un rôle = insérer une ligne, pas refactor.
+- **Contrôle d'accès Zero Trust, permissions comme données**. Aucun droit implicite : chaque action sensible passe par une permission explicitement attribuée au rôle de l'utilisateur. La matrice rôle → permissions est stockée en DB (pas en dur dans le code), chargée dans `hooks.server.ts` à la connexion, et l'UI est gardée par clé de permission (`armoire:read`, `armoire:create`, `role:grant:admin`, etc.) — jamais par test de nom de rôle. Les rôles sont organisés en couches d'accroissement (visibilité → usage → délégation → administration), chaque rôle ajoutant un sous-ensemble explicite au précédent. Conséquence : ajouter un rôle ou ajuster une permission = insérer/modifier une ligne, pas refactor.
 - **Keycloak en SSO**. L'auth n'est pas faite dans l'app : Keycloak est la source de vérité. L'app valide la session côté serveur dans `hooks.server.ts`, mappe les claims Keycloak vers les permissions internes.
 - **Self-hosted via Docker**. Pas de Vercel ni de cloud serverless : l'infra reste dans le fablab. `adapter-node` + image Docker Node sur un VPS / serveur interne.
 
 ## Architecture
 
-```
+```plain
 ┌──────────────────┐         ┌──────────────────┐
 │  Panneau tactile │         │   Affichage      │
 │  (kiosque        │         │   public         │
@@ -100,7 +106,7 @@ Le raisonnement détaillé derrière ces choix (et les alternatives écartées) 
 
 Le code applicatif est isolé dans `web/`. La racine ne contient que des éléments transverses (docs, Make, Docker, ignores). Cela permet d'ajouter facilement d'autres composants à côté plus tard (ex : `firmware/`, `infra/`, `docs/`) sans réorganiser.
 
-```
+```plain
 .
 ├── docker/                  Dockerfiles et compose (dev + prod)
 │   ├── Dockerfile           Image de production (multi-stage, adapter-node)
@@ -211,7 +217,9 @@ Puis modifier `web/svelte.config.js` :
 ```js
 import adapter from '@sveltejs/adapter-node';
 // ...
-kit: { adapter: adapter() }
+kit: {
+  adapter: adapter();
+}
 ```
 
 Ensuite :
@@ -225,22 +233,22 @@ make docker-prod-down    # arrêt
 
 `make help` (ou simplement `make`) affiche la liste complète. Résumé :
 
-| Catégorie | Cible | Effet |
-|---|---|---|
-| Dev local | `install` | Installe les dépendances npm |
-| Dev local | `dev` | Lance Vite sur `:5173` |
-| Dev local | `build` | Build de production (requiert adapter-node) |
-| Dev local | `preview` | Sert le build de production localement |
-| Dev local | `check` | Vérifie le typage Svelte / TS |
-| Docker | `docker-dev` | Lance l'app en conteneur (HMR) |
-| Docker | `docker-dev-detached` | Idem en arrière-plan |
-| Docker | `docker-logs` | Logs du conteneur de dev |
-| Docker | `docker-down` | Arrête le conteneur de dev |
-| Docker | `docker-prod-build` | Build l'image de production |
-| Docker | `docker-prod` | Lance la prod en arrière-plan |
-| Docker | `docker-prod-down` | Arrête la prod |
-| Nettoyage | `clean` | Supprime `node_modules`, `.svelte-kit`, `build` |
-| Nettoyage | `clean-docker` | Supprime conteneurs, volumes et images locaux |
+| Catégorie | Cible                 | Effet                                           |
+| --------- | --------------------- | ----------------------------------------------- |
+| Dev local | `install`             | Installe les dépendances npm                    |
+| Dev local | `dev`                 | Lance Vite sur `:5173`                          |
+| Dev local | `build`               | Build de production (requiert adapter-node)     |
+| Dev local | `preview`             | Sert le build de production localement          |
+| Dev local | `check`               | Vérifie le typage Svelte / TS                   |
+| Docker    | `docker-dev`          | Lance l'app en conteneur (HMR)                  |
+| Docker    | `docker-dev-detached` | Idem en arrière-plan                            |
+| Docker    | `docker-logs`         | Logs du conteneur de dev                        |
+| Docker    | `docker-down`         | Arrête le conteneur de dev                      |
+| Docker    | `docker-prod-build`   | Build l'image de production                     |
+| Docker    | `docker-prod`         | Lance la prod en arrière-plan                   |
+| Docker    | `docker-prod-down`    | Arrête la prod                                  |
+| Nettoyage | `clean`               | Supprime `node_modules`, `.svelte-kit`, `build` |
+| Nettoyage | `clean-docker`        | Supprime conteneurs, volumes et images locaux   |
 
 ## Variables d'environnement
 
