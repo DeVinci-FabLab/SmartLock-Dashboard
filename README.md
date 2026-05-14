@@ -2,7 +2,7 @@
 
 Tableau de bord interne pour la gestion des armoires connectées, des stocks, des rôles et de l'historique d'actions du **Devinci Fablab**.
 
-> Outil interne, multi-rôles, avec authentification SSO (Keycloak), historique non altérable, panneau de contrôle tactile sur l'armoire, et affichage public à venir.
+> Outil interne, multi-rôles, avec authentification SSO (Keycloak), modèle ACM en tiers (rôles système immuables + rôles personnalisés configurables via le dashboard), et historique d'actions append-only.
 
 ---
 
@@ -34,72 +34,90 @@ Tableau de bord interne pour la gestion des armoires connectées, des stocks, de
 
 Le Devinci Fablab dispose d'armoires connectées dont l'accès est contrôlé par badge étudiant. Chaque armoire contient un inventaire d'items (filaments, composants électroniques, textiles, fournitures de bureau, etc.). Le besoin :
 
-- Gérer un **inventaire** dimensionné jusqu'à 100 types d'items par armoire.
-- Tracer **toutes les actions** (entrée, sortie, modification) dans un historique non altérable.
-- Contrôler l'accès aux armoires et aux fonctionnalités via une **matrice de contrôle d'accès par rôle**, organisée en couches (Zero Trust) : visibilité → usage → délégation de rôles → administration. Aucun droit n'est implicite ; chaque action passe par une permission explicitement accordée. Ce n'est pas une whitelist plate "qui est dedans peut tout faire" — le terme "whitelist" du CDC d'origine désigne en pratique cette matrice de permissions.
-- Définir des **rôles hiérarchisés** (membre, 3D, électronique, textile, matérialiste, codir, admin) où chaque rôle ajoute un sous-ensemble de permissions explicites au précédent. L'UI est gardée par clé de permission, pas par test de nom de rôle.
-- Offrir un **panneau tactile** sur l'armoire elle-même pour consulter et mettre à jour les stocks.
-- Préparer un **affichage public** (kiosque) pour communiquer l'état du fablab.
+- Gérer un **inventaire** dimensionné jusqu'à 100 types d'items par armoire, avec photos, références d'achat externes (Amazon, RS, fournisseur direct) et seuils de stock bas.
+- Tracer **toutes les actions** (accès NFC, mouvements de stock, modifications de catalogue, attributions de rôles, cycle de vie de comptes, génération de bons de commande) dans un audit log append-only au niveau DB.
+- Contrôler l'accès via un **modèle ACM en tiers** (T0..T5) où chaque tier contient des rôles pairs (Zero Trust, aucun droit implicite). Le modèle distingue **6 rôles système immuables** (Admin sys, Présidence, Codir, Trésorerie, Bureau, Membre) et des **rôles personnalisés** (Agents, Responsables, Createch, Ingénieur de recherche…) créés/édités/supprimés via le dashboard.
+- Chaque rôle porte deux flags : **`manager`** (peut attribuer/révoquer des rôles utilisateurs aux tiers strictement inférieurs) et **`role_admin`** (peut gérer le catalogue de rôles). Permissions par armoire en enum 3 niveaux (`can_view < can_open < can_edit`). Effectif sur un utilisateur = max sur tous ses rôles.
+- Générer des **bons de commande CSV** pour la Trésorerie à partir des alertes de stock bas, stockés dans un object storage S3-compatible.
 
-Le cahier des charges complet et les variations par rôle sont décrits dans [`CDC.md`](./CDC.md).
+Le cahier des charges complet est décrit dans [`CDC.md`](./CDC.md). Le panneau tactile et l'affichage public vitrine sont **hors scope** de ce projet.
 
 ## Intention
 
 - **Outil interne maintenu par l'équipe**, pas un livrable client : les choix techniques privilégient la productivité de l'équipe et la maintenabilité long terme sur la transférabilité.
-- **Évolutif** : démarrer sur la gestion d'inventaire, puis étendre vers d'autres outils internes du fablab, l'affichage public et le panneau tactile sur l'armoire — sur la même base technique.
+- **Évolutif** : démarrer sur la gestion d'inventaire et de rôles, puis étendre vers d'autres outils internes du fablab sur la même base technique. Le panneau tactile et l'éventuel affichage public sont traités dans des projets séparés qui consomment la même API d'auth.
 - **Explicite plutôt que magique** : on privilégie les stacks où le code écrit est le code qui tourne (débogage facile, reprise par d'autres contributeurs étudiants).
 - **Possession du code UI** : composants copiés dans le projet (style shadcn), zéro lock-in sur une bibliothèque tierce.
 
 ## Stack technique
 
-| Couche           | Choix                                                 | Justification courte                                                     |
-| ---------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
-| Meta-framework   | **SvelteKit** (Svelte 5 + runes)                      | SSR explicite, file-based routing, hooks server, déploiement Node simple |
-| UI / composants  | **shadcn-svelte** + **bits-ui**                       | Composants copiés, zéro dépendance UI tierce                             |
-| Styles           | **Tailwind CSS v4**                                   | Système de design utilitaire, aligné avec shadcn                         |
-| Icônes           | **Lucide** (`@lucide/svelte`)                         | Set d'icônes cohérent, léger                                             |
-| Auth             | **Keycloak** (OIDC) via `@auth/sveltekit` ou `arctic` | SSO interne, gestion centralisée des comptes étudiants                   |
-| Base de données  | **PostgreSQL** (à intégrer)                           | Transactions, JSONB, row-level security pour l'audit                     |
-| ORM              | **Drizzle** (à intégrer)                              | SQL-first, type-safe, philosophie explicite                              |
-| Validation       | **Zod** (à intégrer)                                  | Schémas partagés client / serveur                                        |
-| Build / dev      | **Vite 7**                                            | HMR rapide, config minimale                                              |
-| Conteneurisation | **Docker** + Docker Compose                           | Dev reproductible, déploiement self-hosted                               |
+| Couche               | Choix                                                | Justification courte                                                                                                                                                                              |
+| -------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Meta-framework       | **SvelteKit** (Svelte 5 + runes)                     | SSR explicite, file-based routing, hooks server, déploiement Node simple                                                                                                                          |
+| UI / composants      | **shadcn-svelte** + **bits-ui**                      | Composants copiés, zéro dépendance UI tierce                                                                                                                                                      |
+| Styles               | **Tailwind CSS v4**                                  | Système de design utilitaire, aligné avec shadcn                                                                                                                                                  |
+| Icônes               | **Lucide** (`@lucide/svelte`)                        | Set d'icônes cohérent, léger                                                                                                                                                                      |
+| Auth (SSO)           | **Keycloak** (OIDC + PKCE, OTP pour T2+)             | SSO interne. Le dashboard ne parle jamais à Keycloak directement, tout passe par l'API.                                                                                                           |
+| API d'auth / données | **SmartLock-Authentication-Authorization** (FastAPI) | Service externe ([repo](https://github.com/DeVinci-FabLab/SmartLock-Authentication-Authorization)). Source de vérité pour identités, rôles, permissions, audit. Le dashboard est son client REST. |
+| Base de données      | **PostgreSQL** (côté API d'auth)                     | Transactions, JSONB, audit append-only via rôle DB séparé.                                                                                                                                        |
+| Object storage       | **rustfs** (S3-compatible, drop-in MinIO)            | Stockage des photos d'items et des CSV générés. Accès via URLs signées émises par l'API.                                                                                                          |
+| Validation           | **Zod** (à intégrer)                                 | Schémas partagés client / serveur côté SvelteKit                                                                                                                                                  |
+| Build / dev          | **Vite 7**                                           | HMR rapide, config minimale                                                                                                                                                                       |
+| Conteneurisation     | **Docker** + Docker Compose                          | Dev reproductible, déploiement self-hosted. Le compose inclut SvelteKit + rustfs.                                                                                                                 |
 
-Le raisonnement détaillé derrière ces choix (et les alternatives écartées) est documenté dans [`decision-plan.md`](./decision-plan.md).
+Les décisions structurantes derrière ces choix sont résumées dans la section [Décisions clés](#décisions-clés) ci-dessous.
 
 ## Décisions clés
 
 - **SvelteKit plutôt que Next.js**. Le projet est un outil interne maintenu par l'équipe sur la durée. L'argument "transférable à n'importe quel dev React" pèse moins que "moins de magie cachée, plus facile à reprendre pour un contributeur étudiant". SvelteKit a une séparation client / serveur explicite (`+page.svelte` vs `+page.server.ts`) sans Server Components ni cache defaults qui changent entre versions.
 - **shadcn-svelte accepté comme exception**. Le doc de décision globale exclut les ports communautaires de shadcn ; `shadcn-svelte` (basé sur `bits-ui`) est l'exception documentée pour ce projet, car suffisamment mature et adopté.
-- **PostgreSQL + audit append-only**. L'historique des actions doit être non altérable. Implémentation prévue : table `audit_log` en append-only, le rôle DB applicatif n'a pas les droits `DELETE` ni `UPDATE` dessus. Les exceptions (président / comité de contrôle) passent par un rôle DB séparé.
-- **Contrôle d'accès Zero Trust, permissions comme données**. Aucun droit implicite : chaque action sensible passe par une permission explicitement attribuée au rôle de l'utilisateur. La matrice rôle → permissions est stockée en DB (pas en dur dans le code), chargée dans `hooks.server.ts` à la connexion, et l'UI est gardée par clé de permission (`armoire:read`, `armoire:create`, `role:grant:admin`, etc.) — jamais par test de nom de rôle. Les rôles sont organisés en couches d'accroissement (visibilité → usage → délégation → administration), chaque rôle ajoutant un sous-ensemble explicite au précédent. Conséquence : ajouter un rôle ou ajuster une permission = insérer/modifier une ligne, pas refactor.
-- **Keycloak en SSO**. L'auth n'est pas faite dans l'app : Keycloak est la source de vérité. L'app valide la session côté serveur dans `hooks.server.ts`, mappe les claims Keycloak vers les permissions internes.
-- **Self-hosted via Docker**. Pas de Vercel ni de cloud serverless : l'infra reste dans le fablab. `adapter-node` + image Docker Node sur un VPS / serveur interne.
+- **API d'auth comme single source of truth**. Le dashboard ne parle jamais à Keycloak ni à PostgreSQL directement — tout passe par l'API [`SmartLock-Authentication-Authorization`](https://github.com/DeVinci-FabLab/SmartLock-Authentication-Authorization) (FastAPI). Centralise auth, permissions, audit, contrôle d'accès. Le dashboard est un client REST + un BFF SvelteKit fin via `+page.server.ts`. Conséquence : une seule surface à sécuriser, une seule matrice ACM à maintenir, et le panneau tactile (autre projet) consomme la même API.
+- **Modèle ACM en tiers, rôles système + custom**. Hiérarchie linéaire de 6 tiers (T0..T5), rôles pairs au sein d'un tier. 6 rôles système codés en dur (Admin sys, Présidence, Codir, Trésorerie, Bureau, Membre) ; tout le reste est custom et configurable via dashboard. Chaque rôle porte les flags `manager` et `role_admin`, qui dictent qui peut attribuer/révoquer un rôle utilisateur et qui peut gérer le catalogue. Conséquence : créer un nouvel Agent ou Responsable = quelques clics côté dashboard, pas un déploiement de code.
+- **Audit log append-only**. La table d'audit est en append-only au niveau DB. Le rôle applicatif n'a ni `DELETE` ni `UPDATE` dessus. Seul un rôle DB séparé (Admin sys uniquement, hors API) peut intervenir pour des raisons techniques (corruption, migration, archivage). Rétention indéfinie par défaut.
+- **rustfs pour les assets binaires**. Service d'object storage S3-compatible (drop-in MinIO) déployé dans le compose de ce projet. Stocke les photos d'items et les CSV générés par le workflow Trésorerie. L'API détient les credentials du bucket ; le dashboard accède aux assets via des URLs signées émises par l'API, valables un temps court.
+- **Keycloak en SSO**. L'auth n'est pas faite dans l'app : Keycloak est la source de vérité, accédée uniquement par l'API d'auth. Le dashboard reçoit un JWT, valide la session côté serveur dans `hooks.server.ts`, et propage le token aux appels API.
+- **Self-hosted via Docker**. Pas de Vercel ni de cloud serverless : l'infra reste dans le fablab. `adapter-node` + image Docker Node sur un VPS / serveur interne, plus rustfs en service voisin.
 
 ## Architecture
 
 ```plain
-┌──────────────────┐         ┌──────────────────┐
-│  Panneau tactile │         │   Affichage      │
-│  (kiosque        │         │   public         │
-│  Chromium)       │         │   (kiosque)      │
-└────────┬─────────┘         └─────────┬────────┘
-         │                             │
-         ▼                             ▼
-┌─────────────────────────────────────────────────┐
-│              SmartLock Dashboard                │
-│        (SvelteKit, adapter-node, Docker)        │
-│                                                 │
-│  hooks.server.ts  →  session Keycloak           │
-│  +page.server.ts  →  load DB (Drizzle)          │
-│  +page.svelte     →  UI (shadcn-svelte)         │
-└──────────┬─────────────────────────┬────────────┘
-           │                         │
-           ▼                         ▼
-   ┌──────────────┐          ┌──────────────┐
-   │   Keycloak   │          │  PostgreSQL  │
-   │  (OIDC SSO)  │          │ (data+audit) │
-   └──────────────┘          └──────────────┘
+                  ┌────────────────────────┐
+                  │     Utilisateur        │
+                  │     (navigateur)       │
+                  └───────────┬────────────┘
+                              │ HTTPS (OIDC + PKCE login,
+                              │        Bearer JWT pour API)
+                              ▼
+              ┌────────────────────────────────────────┐
+              │      SmartLock Dashboard               │
+              │      (SvelteKit + adapter-node)        │  ← ce projet
+              │                                        │
+              │  hooks.server.ts  →  session JWT       │
+              │  +page.server.ts  →  BFF / proxy REST  │
+              │  +page.svelte     →  UI (shadcn)       │
+              └─────────────────┬──────────────────────┘
+                                │ REST + Bearer JWT
+                                ▼
+              ┌────────────────────────────────────────┐
+              │      SmartLock-Authentication-         │
+              │      Authorization (FastAPI)           │  ← projet voisin
+              └────┬───────────────┬──────────────┬────┘
+                   │               │              │
+                   ▼               ▼              ▼
+           ┌──────────┐     ┌──────────┐     ┌──────────┐
+           │ Keycloak │     │PostgreSQL│     │  rustfs  │
+           │  (OIDC)  │     │ (data +  │     │  (S3 obj │
+           │          │     │  audit)  │     │   store) │
+           └──────────┘     └──────────┘     └─────┬────┘
+                                                   │
+                                                   │ déployé dans
+                                                   │ le compose
+                                                   │ de ce projet
+
+      ┌──────────────────────────┐
+      │  Panneau tactile NFC     │  ← autre projet (hors scope) :
+      │  (Raspberry Pi)          │    consomme la même API d'auth.
+      └──────────────────────────┘
 ```
 
 ## Structure du projet
@@ -135,7 +153,6 @@ Le code applicatif est isolé dans `web/`. La racine ne contient que des éléme
 │   ├── .npmrc
 │   └── .dockerignore        Lu par Docker au build (contexte = web/)
 ├── CDC.md                   Cahier des charges (besoins métier)
-├── decision-plan.md         Justification de la stack
 ├── README.md                Ce fichier
 ├── Makefile                 Commandes raccourcies (opère dans web/ via npm --prefix)
 ├── LICENSE
@@ -149,14 +166,18 @@ Le code applicatif est isolé dans `web/`. La racine ne contient que des éléme
 Construit incrémentalement, une couche à la fois :
 
 1. **MVP UI navigable** (en cours, branche `draft-layout`) — layouts, composants shadcn-svelte, navigation entre pages "Armoires" et "Rôles", données statiques.
-2. **Auth Keycloak** — intégration OIDC, sessions cookies, garde de routes, mapping claims → rôles internes.
-3. **PostgreSQL + Drizzle** — schéma `users`, `roles`, `permissions`, `armoires`, `items`, `audit_log` ; rôles DB séparés (applicatif vs élevé).
-4. **Permissions data-driven** — chargement des permissions en session, gates UI par clé, gates server par middleware.
-5. **CRUD inventaire** — affichage, ajout, suppression d'items et types d'items selon rôle.
-6. **Historique** — vue audit consultable, filtres par armoire/utilisateur/date, immuabilité garantie au niveau DB.
-7. **Panneau tactile** — vue dédiée optimisée écran tactile (UI gros boutons, pas d'interaction clavier requise).
-8. **Affichage public** — section `/display/*` sans auth, read-only, kiosque (autorefresh, plein écran).
-9. **Outils additionnels** — autres modules métier du fablab sur la même base.
+2. **Auth Keycloak via API** — flow OIDC + PKCE côté SvelteKit, sessions JWT serveur, OTP imposé pour les comptes T2+.
+3. **Intégration API d'auth** — appels REST depuis `+page.server.ts` vers `/users`, `/roles`, `/armoires`, `/items`, `/stock`. Pas de DB locale au dashboard, tout passe par l'API.
+4. **Gates côté UI** — affichage conditionné par tier et flags `manager` / `role_admin` du compte connecté (cf. CDC).
+5. **CRUD inventaire** — items, catégories, stock, seuils, via les endpoints API.
+6. **Historique / audit log** — vue consultable, filtres par armoire / utilisateur / date / type d'événement.
+7. **Landing publique** — page `/` sans auth (présentation, lien GitHub, lien asso, bouton login).
+8. **Gestion des rôles personnalisés** — vue dédiée pour comptes `role_admin = true` : créer / éditer / supprimer un rôle custom, configurer tier et flags.
+9. **Workflow Trésorerie** — vue stocks bas, sélection d'items, génération CSV (stocké dans rustfs), suivi binaire `draft → clos`.
+10. **Intégration rustfs** — upload des photos d'items, téléchargement des CSV via URLs signées émises par l'API.
+11. **Outils additionnels** — autres modules métier du fablab sur la même base.
+
+Le **panneau tactile** sur armoire et un éventuel **affichage public vitrine** sont hors scope de ce dépôt — ils sont traités dans des projets séparés qui consomment la même API d'auth.
 
 ## Démarrage rapide
 
@@ -256,19 +277,26 @@ Aucune n'est nécessaire pour démarrer en dev sur l'UI seule. Au fur et à mesu
 
 ```dotenv
 # À venir, exemples
-DATABASE_URL=postgres://user:pass@localhost:5432/smartlock
+
+# Keycloak (client public, flow OIDC Auth Code + PKCE — pas de secret côté navigateur)
 KEYCLOAK_ISSUER=https://keycloak.devinci.fr/realms/fablab
 KEYCLOAK_CLIENT_ID=smartlock-dashboard
-KEYCLOAK_CLIENT_SECRET=...
+
+# API SmartLock-Authentication-Authorization (source de vérité)
+SMARTLOCK_API_URL=https://api.smartlock.devinci-fablab.fr
+
+# Secret pour chiffrer les cookies de session côté SvelteKit
 AUTH_SECRET=...
 ```
+
+Pas de `DATABASE_URL` ni de credentials rustfs côté dashboard : le dashboard ne parle ni à PostgreSQL ni à rustfs directement, c'est l'API qui en a la responsabilité.
 
 Un `web/.env.example` sera maintenu pour documenter les variables attendues.
 
 ## Documents de référence
 
-- [`CDC.md`](./CDC.md) — cahier des charges, rôles, permissions, contraintes métier.
-- [`decision-plan.md`](./decision-plan.md) — justification détaillée de la stack et grille de décision pour les autres projets de l'équipe.
+- [`CDC.md`](./CDC.md) — cahier des charges complet : modèle ACM en tiers, rôles système et personnalisés, flags `manager` / `role_admin`, cycle de vie compte, capacités spécifiques, audit log, workflow Trésorerie, divergences avec l'API d'auth actuelle.
+- [`SmartLock-Authentication-Authorization`](https://github.com/DeVinci-FabLab/SmartLock-Authentication-Authorization) — API backend FastAPI, source de vérité pour identités, rôles, permissions, audit. Le dashboard est son client.
 
 ## Licence
 
