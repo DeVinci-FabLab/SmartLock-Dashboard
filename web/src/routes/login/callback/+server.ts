@@ -1,5 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
 import { exchangeCodeForTokens } from '$lib/auth/keycloak';
+import { fetchMe } from '$lib/auth/fetchMe';
 import { readSession, writeSession } from '$lib/auth/session';
 import type { RequestHandler } from './$types';
 
@@ -16,11 +17,15 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		throw error(400, `Échec de l'échange OIDC : ${(e as Error).message}`);
 	}
 
+	const accessToken = tokens.access_token!;
+	const me = await fetchMe(accessToken);
+
 	writeSession(cookies, {
-		accessToken: tokens.access_token!,
+		accessToken,
 		refreshToken: tokens.refresh_token ?? '',
 		idToken: tokens.id_token ?? '',
 		expiresAt: Math.floor(Date.now() / 1000) + (tokens.expires_in ?? 60),
+		user: me ?? undefined,
 	});
 
 	throw redirect(303, '/');

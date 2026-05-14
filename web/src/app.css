@@ -8,6 +8,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Override Tailwind v4's default `data-active:` variant so it requires the
+ * attribute value to be `"true"`. Without this, shadcn-svelte components that
+ * emit `data-active="false"` (string) as a fallback would still match the
+ * variant (because the attribute is present), incorrectly applying the active
+ * state styles to inactive items. Affects SidebarMenuButton primarily.
+ */
+@custom-variant data-active (&:where([data-active='true']));
+
 @theme {
 	--font-sans: 'Inter Variable', system-ui, sans-serif;
 	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
