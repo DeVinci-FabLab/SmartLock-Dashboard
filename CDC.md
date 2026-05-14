@@ -16,9 +16,61 @@ L'allocation des droits sur les armoires et stocks est gérée par un système d
 - **Présidence**.
 - **Administrateur système**.
 
-> **Blacklist n'est pas un rôle.** Un compte « PNG / Externe » est un compte qui n'a aucun rôle assigné. L'absence de rôle suffit à le priver de tout accès (Zero Trust : aucun droit implicite). Si l'on veut tracer qu'un compte a été *activement* refusé, on attache un attribut `banned` au compte ; cela reste un attribut du compte, pas une ligne dans la grille des rôles.
-
 > **Createch.** Membres « spéciaux », pas membres réguliers — traitement au cas par cas. **TODO** : préciser le périmètre (quelles armoires, quelle durée d'accès, quelle procédure d'attribution / révocation).
+
+### Cycle de vie d'un compte
+
+Indépendamment des rôles, chaque compte a un **statut** logique parmi :
+
+- **active** — compte normal. Ses rôles s'appliquent.
+- **revoked** — compte conservé mais bloqué. Aucune authentification possible, ni dashboard ni badge NFC. **Les rôles restent attachés** (soft revoke) pour permettre une restauration rapide sans avoir à les ressaisir.
+- **deleted** — suppression définitive. Irréversible.
+
+> **Important : le statut n'est pas un champ stocké.** Il est **dérivé** de l'état du compte côté Keycloak (existence + flag natif `enabled`). Aucune colonne `status` n'est ajoutée à la base de données locale, aucune synchronisation à maintenir — **Keycloak est la source de vérité unique**.
+>
+> | Statut CDC | Représentation Keycloak                |
+> | ---------- | -------------------------------------- |
+> | `active`   | utilisateur existe, `enabled: true`    |
+> | `revoked`  | utilisateur existe, `enabled: false`   |
+> | `deleted`  | utilisateur n'existe pas (hard delete) |
+
+**Transitions :**
+
+- `active → revoked` : action « révoquer ». Réversible. L'utilisateur ne peut plus rien faire mais son compte et ses rôles sont préservés.
+- `revoked → active` : action « restaurer ». L'utilisateur retrouve immédiatement ses rôles d'avant la révocation.
+- `active | revoked → deleted` : action « supprimer définitivement ». Le compte disparaît de Keycloak.
+
+**Flux d'écriture (dashboard → API → Keycloak) :**
+
+Le dashboard ne stocke jamais le statut. Il déclenche une action via l'API d'auth, qui modifie directement l'état Keycloak. Le dashboard affiche ensuite le statut en relisant l'état Keycloak (via les endpoints existants `GET /users`).
+
+```plain
+[Dashboard] ──action──► [API SmartLock] ──Keycloak Admin API──► [Keycloak]
+                                          (PUT enabled=false / true)
+                                          (DELETE)
+```
+
+Endpoints API attendus (cf. [divergence #9](#divergences-à-arbitrer-avec-lapi-actuelle)) :
+
+| Action      | Endpoint dashboard           | Effet côté Keycloak                                                      |
+| ----------- | ---------------------------- | ------------------------------------------------------------------------ |
+| Révoquer    | `POST /users/{id}/revoke`    | `PUT /admin/realms/fablab/users/{id}` avec `enabled: false`              |
+| Restaurer   | `POST /users/{id}/restore`   | `PUT /admin/realms/fablab/users/{id}` avec `enabled: true`               |
+| Supprimer   | `DELETE /users/{id}`         | `DELETE /admin/realms/fablab/users/{id}` (hard delete)                   |
+
+> Le terme **PNG / Externe** du CDC d'origine recouvre deux situations différentes, aucune des deux n'étant un rôle :
+>
+> 1. Un ancien membre **revoked** — son compte existe encore, il est juste bloqué. Restaurable.
+> 2. Une personne qui n'a jamais eu de compte — pas modélisée dans le système, simplement absente.
+>
+> Il n'y a donc pas besoin de « rôle Blacklist » ni de « rôle minimal que tout le monde a » : le statut du compte est orthogonal aux rôles, et l'absence de compte = absence du système.
+
+> **Note sur le hard revoke.** Le modèle décrit est volontairement *soft* : la révocation préserve les rôles. Si un incident futur le justifie, on pourra durcir le modèle en retirant aussi les rôles au moment de la révocation (et en les stockant dans un attribut `previous_roles` en lecture seule pour la restauration). Pas nécessaire au démarrage.
+
+**TODO** — qui peut révoquer / restaurer / supprimer ? À intégrer dans la matrice `manages` :
+
+- **Révoquer / restaurer** : Présidence, Codir, Administrateur système (à valider).
+- **Supprimer définitivement** : Administrateur système uniquement (action irréversible, garde-fou).
 
 ### Permissions (par armoire)
 
@@ -74,15 +126,15 @@ Règles :
 
 **TODO** — figer la matrice `manages` complète. Proposition de départ à valider :
 
-| Rôle                      | Peut attribuer / révoquer                                  |
-| ------------------------- | ---------------------------------------------------------- |
-| Administrateur système    | Tous                                                       |
-| Présidence                | Tous sauf Administrateur système                           |
-| Comité de direction       | Bureau, Trésorerie, Responsable, Agent, Membre, Createch   |
-| Bureau                    | Responsable, Agent, Membre, Createch                       |
-| Responsable (matér.)      | Agent, Membre                                              |
-| Trésorerie                | _(aucun par défaut — rôle métier, pas rôle de gestion)_    |
-| Agent / Membre / Createch | _(aucun)_                                                  |
+| Rôle                      | Peut attribuer / révoquer                                |
+| ------------------------- | -------------------------------------------------------- |
+| Administrateur système    | Tous                                                     |
+| Présidence                | Tous sauf Administrateur système                         |
+| Comité de direction       | Bureau, Trésorerie, Responsable, Agent, Membre, Createch |
+| Bureau                    | Responsable, Agent, Membre, Createch                     |
+| Responsable (matér.)      | Agent, Membre                                            |
+| Trésorerie                | _(aucun par défaut — rôle métier, pas rôle de gestion)_  |
+| Agent / Membre / Createch | _(aucun)_                                                |
 
 ### Exemple
 
@@ -181,7 +233,7 @@ Le dashboard doit pouvoir servir à :
 
 L'API [`SmartLock-Authentication-Authorization`](https://github.com/DeVinci-FabLab/SmartLock-Authentication-Authorization) existe déjà et présente plusieurs écarts avec le modèle cible décrit ci-dessus. À résoudre soit en ajustant l'API, soit en ajustant la cible.
 
-1. **Permissions booléennes au lieu d'enum.** L'API stocke les permissions par armoire sous forme de colonnes booléennes indépendantes : `can_view`, `can_open`, `can_edit`, `can_take`, `can_manage` (cf. `docs/api-reference.md` → *Locker Permissions*).
+1. **Permissions booléennes au lieu d'enum.** L'API stocke les permissions par armoire sous forme de colonnes booléennes indépendantes : `can_view`, `can_open`, `can_edit`, `can_take`, `can_manage` (cf. `docs/api-reference.md` → _Locker Permissions_).
    - Cible CDC : enum hiérarchique à 3 niveaux (`can_view < can_open < can_edit`).
    - Décision : soit ajuster le schéma (colonne `permission_level` enum + drop des booléens), soit conserver les booléens en imposant par convention dans le code applicatif l'invariant hiérarchique (« interdit de cocher `can_open` sans `can_view` »). La première option est plus saine.
 
@@ -197,4 +249,19 @@ L'API [`SmartLock-Authentication-Authorization`](https://github.com/DeVinci-FabL
 
 7. **Liste des rôles incomplète côté Keycloak.** L'API documente les rôles `membre, 3d, electronique, textile, materialiste, codir, admin`. Manquent : `createch`, sous-rôles `agent_fdm / agent_sla / agent_sls`, `bureau`, `responsable` (distinct de `materialiste`), `tresorerie`, `presidence`. À aligner côté Keycloak avant que le dashboard puisse refléter le CDC. **Note** : `docs/system-design.md` du dépôt d'auth utilise encore une 3e liste (`woodshop-member`, `electronics-member`) — incohérence interne au backend à corriger.
 
-8. **Périmètre de la matrice `manages` côté API.** L'API expose une matrice statique (`api-reference.md` → *Role Management*) : `Matérialiste` peut gérer `membre/3d` ; `Codir/Admin` peut gérer plus. Le CDC veut cette matrice en data dans le code du dashboard (cf. tableau `manages`). À aligner : une seule source de vérité, idéalement dans le code partagé (ou au minimum dupliquée à l'identique côté API et côté dashboard avec un test qui les compare).
+8. **Périmètre de la matrice `manages` côté API.** L'API expose une matrice statique (`api-reference.md` → _Role Management_) : `Matérialiste` peut gérer `membre/3d` ; `Codir/Admin` peut gérer plus. Le CDC veut cette matrice en data dans le code du dashboard (cf. tableau `manages`). À aligner : une seule source de vérité, idéalement dans le code partagé (ou au minimum dupliquée à l'identique côté API et côté dashboard avec un test qui les compare).
+
+9. **Endpoints de cycle de vie utilisateur manquants.** L'API actuelle expose l'assignation / révocation de **rôles**, mais pas le cycle de vie du **compte**. À ajouter pour supporter le statut `active / revoked / deleted` défini en [Cycle de vie d'un compte](#cycle-de-vie-dun-compte) :
+   - `POST /users/{id}/revoke` → `PUT /admin/realms/fablab/users/{id}` avec `{ "enabled": false }`.
+   - `POST /users/{id}/restore` → `PUT /admin/realms/fablab/users/{id}` avec `{ "enabled": true }`.
+   - `DELETE /users/{id}` → `DELETE /admin/realms/fablab/users/{id}` (hard delete).
+
+   Permissions à câbler (TODO matrice) : révoquer / restaurer = Présidence / Codir / Admin sys ; supprimer définitivement = Admin sys uniquement.
+
+   L'endpoint `GET /users` existant doit aussi remonter le champ `enabled` dans la réponse (à vérifier — il proxie Keycloak donc c'est probablement déjà le cas, mais à confirmer côté `src/routes/users.py`).
+
+10. **Vérification `enabled` manquante dans le flux d'auth NFC.** Le flux décrit dans `docs/system-design.md` (étapes 5-7) recherche l'utilisateur par `card_id`, lit ses rôles, calcule les permissions. Il **ne vérifie pas explicitement** le flag `enabled`. Conséquence : un compte **revoked** dont le badge n'a pas été retiré physiquement pourrait quand même ouvrir une armoire si l'API ne refuse pas explicitement.
+
+    Correctif : entre l'étape 5 (lookup user) et l'étape 6 (lecture des rôles), ajouter `if not user.enabled: return 403 { allowed: false, reason: "account_revoked" }`. Étendre l'énum `reason` de la réponse pour inclure `account_revoked` (en plus des `card_not_registered`, `no_permission`, `expired` existants).
+
+    Même contrôle nécessaire côté login dashboard, mais là Keycloak refuse nativement l'émission de token pour un compte `enabled: false` — pas besoin de check applicatif.
