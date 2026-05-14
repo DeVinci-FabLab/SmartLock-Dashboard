@@ -4,19 +4,68 @@
 
 ### Rôles
 
-L'allocation des droits sur les armoires et stocks est gérée par un système de rôles. Les rôles sont **globaux** (définis au niveau du fablab, pas par armoire) et **codés en dur** dans le dashboard (pas configurables en base par l'utilisateur final). Liste par ordre de hiérarchie (du plus bas au plus haut) :
+Les rôles sont **globaux** (définis au niveau du fablab, pas par armoire) et **codés en dur** dans le dashboard (pas configurables en base par l'utilisateur final). Ils sont organisés en **branches** qui regroupent les rôles par domaine. Toutes les branches suivent la même logique : une liste hiérarchique de rôles cumulatifs au sein de la branche.
 
-- **Createch** — membres « spéciaux », pas membres réguliers du fablab, traitement particulier (cf. note ci-dessous).
-- **Membre** — étudiant inscrit au fablab.
-- **Agent** — référent technique d'un pôle. Sous-rôles : FDM, SLA, SLS, électronique, textile.
-- **Bureau** — membre du bureau associatif.
-- **Responsable** — porte une responsabilité opérationnelle. Sous-rôle : matérialiste.
-- **Comité de direction** (codir).
-- **Trésorerie** — gère les achats et bons de commande.
-- **Présidence**.
-- **Administrateur système**.
+**Les branches ne sont pas mutuellement exclusives.** Un utilisateur peut cumuler des rôles issus de plusieurs branches (par exemple : être à la fois Createch et Membre). Ses droits effectifs sur une armoire sont l'**union des droits** accordés par chacun de ses rôles (cf. [Cumul des rôles](#cumul-des-rôles-entre-branches)).
 
-> **Createch.** Membres « spéciaux », pas membres réguliers — traitement au cas par cas. **TODO** : préciser le périmètre (quelles armoires, quelle durée d'accès, quelle procédure d'attribution / révocation).
+De nouvelles branches pourront être ajoutées plus tard sans changer le modèle — il suffit de définir une branche supplémentaire avec ses propres rôles, l'union continue de fonctionner automatiquement.
+
+Aujourd'hui, trois branches sont définies :
+
+```plain
+   Branche                Branche                  Branche
+   « internes »           « externes »             « gouvernance »
+   ─────────────          ─────────────            ──────────────
+   ↑ Bureau               ↑ Ing. de recherche      ↑ Admin sys
+   │ Responsable          │ Createch               │ Présidence
+   │ Agent                                         │ Trésorerie
+   │ Membre                                        │ Comité de direction
+
+   (étudiants /           (programmes              (gouvernance interne
+    staff DeVinci)         spéciaux,                du fablab — voir
+                           intervenants             règle d'anchor)
+                           externes)
+
+           ▲                       ▲                        ▲
+           └───────────────────────┴────────────────────────┘
+              Un utilisateur peut cumuler des rôles
+              de plusieurs branches. Droits effectifs
+              sur une armoire = max (enum) sur tous ses rôles.
+```
+
+#### Branche « membres internes »
+
+Étudiants et staff DeVinci. Hiérarchie cumulative (du plus bas au plus haut) :
+
+1. **Membre** — étudiant inscrit au fablab.
+2. **Agent** — référent technique d'un pôle. Sous-rôles : FDM, SLA, SLS, électronique, textile.
+3. **Responsable** — porte une responsabilité opérationnelle. Sous-rôle : matérialiste.
+4. **Bureau** — membre du bureau associatif.
+
+#### Branche « membres externes »
+
+Rôles attribués à des personnes participant au fablab via des programmes spécifiques ou en intervention ponctuelle. **N'implique pas l'exclusion** d'un rôle de la branche internes : un Createch peut très bien être aussi étudiant Membre. Hiérarchie cumulative au sein de la branche (du plus bas au plus haut) :
+
+1. **Createch** — accès limité, généralement à l'ouverture de certaines armoires. **TODO** : préciser le périmètre.
+2. **Ingénieur de recherche** — chercheur, enseignant intervenant ou partenaire avec un accès étendu.
+
+#### Branche « gouvernance »
+
+Rôles de gouvernance et d'administration du fablab. Hiérarchie cumulative (du plus bas au plus haut) :
+
+1. **Comité de direction** (codir).
+2. **Trésorerie** — gère les achats et bons de commande.
+3. **Présidence**.
+4. **Administrateur système**.
+
+> **Règle d'anchor.** Un rôle de gouvernance ne peut être attribué qu'à un compte ayant **déjà au moins un rôle de la branche internes**. Autrement dit, on ne peut pas être Codir sans être d'abord Membre / Agent / Responsable / Bureau. La gouvernance n'est pas une branche d'entrée — c'est un sommet qui se cumule par-dessus une appartenance interne existante. Cette règle est **vérifiée côté API** au moment de l'attribution. **TODO** — confirmer cette règle d'anchor (alternative : retirer toute restriction et laisser la matrice `manages` seule décider qui peut promouvoir qui).
+
+#### Cumul des rôles entre branches
+
+- Un utilisateur peut cumuler **n'importe quelle combinaison de rôles** issus de **n'importe quelle combinaison de branches**, à l'exception de la règle d'anchor ci-dessus pour la gouvernance.
+- Pour une action donnée (ex. ouvrir une armoire), on prend l'**union des droits** accordés par chacun de ses rôles. Concrètement : permission effective sur une armoire = **max sur l'enum** (`can_view < can_open < can_edit`) parmi toutes les permissions accordées par tous ses rôles, toutes branches confondues. Aucune branche n'en « bloque » une autre.
+- **Ajouter une branche plus tard** n'a aucun impact sur les branches existantes : la même règle d'union s'applique automatiquement. Le code du dashboard et de l'API doivent itérer sur toutes les branches sans hardcoder leur nombre.
+- **Capacités spécifiques** (cf. [Capacités spécifiques par rôle](#capacités-spécifiques-par-rôle)) : même logique d'union. Si l'utilisateur a au moins un rôle qui donne une capacité (ex. Trésorerie → générer bons de commande), il dispose de cette capacité, quels que soient ses autres rôles.
 
 ### Cycle de vie d'un compte
 
@@ -52,11 +101,11 @@ Le dashboard ne stocke jamais le statut. Il déclenche une action via l'API d'au
 
 Endpoints API attendus (cf. [divergence #9](#divergences-à-arbitrer-avec-lapi-actuelle)) :
 
-| Action      | Endpoint dashboard           | Effet côté Keycloak                                                      |
-| ----------- | ---------------------------- | ------------------------------------------------------------------------ |
-| Révoquer    | `POST /users/{id}/revoke`    | `PUT /admin/realms/fablab/users/{id}` avec `enabled: false`              |
-| Restaurer   | `POST /users/{id}/restore`   | `PUT /admin/realms/fablab/users/{id}` avec `enabled: true`               |
-| Supprimer   | `DELETE /users/{id}`         | `DELETE /admin/realms/fablab/users/{id}` (hard delete)                   |
+| Action    | Endpoint dashboard         | Effet côté Keycloak                                         |
+| --------- | -------------------------- | ----------------------------------------------------------- |
+| Révoquer  | `POST /users/{id}/revoke`  | `PUT /admin/realms/fablab/users/{id}` avec `enabled: false` |
+| Restaurer | `POST /users/{id}/restore` | `PUT /admin/realms/fablab/users/{id}` avec `enabled: true`  |
+| Supprimer | `DELETE /users/{id}`       | `DELETE /admin/realms/fablab/users/{id}` (hard delete)      |
 
 > Le terme **PNG / Externe** du CDC d'origine recouvre deux situations différentes, aucune des deux n'étant un rôle :
 >
@@ -65,7 +114,7 @@ Endpoints API attendus (cf. [divergence #9](#divergences-à-arbitrer-avec-lapi-a
 >
 > Il n'y a donc pas besoin de « rôle Blacklist » ni de « rôle minimal que tout le monde a » : le statut du compte est orthogonal aux rôles, et l'absence de compte = absence du système.
 
-> **Note sur le hard revoke.** Le modèle décrit est volontairement *soft* : la révocation préserve les rôles. Si un incident futur le justifie, on pourra durcir le modèle en retirant aussi les rôles au moment de la révocation (et en les stockant dans un attribut `previous_roles` en lecture seule pour la restauration). Pas nécessaire au démarrage.
+> **Note sur le hard revoke.** Le modèle décrit est volontairement _soft_ : la révocation préserve les rôles. Si un incident futur le justifie, on pourra durcir le modèle en retirant aussi les rôles au moment de la révocation (et en les stockant dans un attribut `previous_roles` en lecture seule pour la restauration). Pas nécessaire au démarrage.
 
 **TODO** — qui peut révoquer / restaurer / supprimer ? À intégrer dans la matrice `manages` :
 
@@ -124,30 +173,42 @@ Règles :
 - Un rôle ne peut attribuer / révoquer que des rôles présents dans sa liste `manages`.
 - Par convention, un rôle ne devrait gérer que des rôles **strictement inférieurs** dans la hiérarchie (à valider cas par cas).
 
-**TODO** — figer la matrice `manages` complète. Proposition de départ à valider :
+**TODO** — figer la matrice `manages` complète. Proposition de départ à valider, croisée avec les branches :
 
-| Rôle                      | Peut attribuer / révoquer                                |
-| ------------------------- | -------------------------------------------------------- |
-| Administrateur système    | Tous                                                     |
-| Présidence                | Tous sauf Administrateur système                         |
-| Comité de direction       | Bureau, Trésorerie, Responsable, Agent, Membre, Createch |
-| Bureau                    | Responsable, Agent, Membre, Createch                     |
-| Responsable (matér.)      | Agent, Membre                                            |
-| Trésorerie                | _(aucun par défaut — rôle métier, pas rôle de gestion)_  |
-| Agent / Membre / Createch | _(aucun)_                                                |
+| Rôle de l'appelant           | Internes peut attribuer    | Externes peut attribuer     | Gouvernance peut attribuer |
+| ---------------------------- | -------------------------- | --------------------------- | -------------------------- |
+| Administrateur système       | Tous                       | Tous                        | Tous                       |
+| Présidence                   | Tous                       | Tous                        | Codir, Trésorerie          |
+| Comité de direction          | Tous                       | Tous                        | _(aucun)_                  |
+| Trésorerie                   | _(aucun)_                  | _(aucun)_                   | _(aucun)_                  |
+| Bureau                       | Membre, Agent, Responsable | Createch, Ing. de recherche | _(aucun)_                  |
+| Responsable (matér.)         | Membre, Agent              | Createch                    | _(aucun)_                  |
+| Agent / Membre               | _(aucun)_                  | _(aucun)_                   | _(aucun)_                  |
+| Ing. de recherche / Createch | _(aucun)_                  | _(aucun)_                   | _(aucun)_                  |
+
+**Lectures clés :**
+
+- **Trésorerie n'est pas un rôle de gestion** : c'est un rôle métier (gérer les achats), il ne distribue aucun rôle. Reflet du principe « rôle de capacité ≠ rôle de gestion ».
+- **Cross-branch** : tous les rôles ayant des entrées non vides dans la colonne « Externes peut attribuer » peuvent attribuer des rôles externes. L'asymétrie est volontaire : aucun rôle externe n'a de capacité `manages` (les externes ne sont pas des rôles de gestion). Comme un utilisateur peut cumuler internes + externes, un Bureau qui est aussi Createch peut attribuer Createch — sa capacité vient de son rôle Bureau, pas de son rôle Createch.
+- **Anchor de gouvernance** : Codir / Présidence / Admin sys peuvent attribuer un rôle de gouvernance, **mais seulement à un compte ayant déjà au moins un rôle de la branche internes** (cf. [Règle d'anchor](#branche-gouvernance)). Cette règle vit au niveau de la **cible** (le compte qui reçoit), pas au niveau de l'**appelant**.
+- **Auto-protection** : un rôle n'est pas dans sa propre liste `manages`, donc un détenteur du rôle X ne peut pas attribuer / révoquer X à quelqu'un d'autre. Conséquence pratique : seul Admin sys peut promouvoir une Présidence ; seul Admin sys peut révoquer un Admin sys. À arbitrer si on veut un garde-fou plus fort sur Admin sys (p.ex. 2 Admin sys requis pour révoquer un Admin sys).
 
 ### Exemple
 
-Matrice illustrative — la permission par armoire reste un enum à 3 niveaux ; `can_manage` n'apparaît plus dans la matrice (déplacé au niveau du rôle, cf. tableau `manages` ci-dessus). Une cellule vide = aucun rôle accordant un accès = aucune permission.
+Matrice illustrative pour 3 armoires, regroupée par branche. La permission par armoire reste un enum à 3 niveaux ; `can_manage` n'apparaît plus (déplacé au niveau du rôle, cf. tableau `manages` ci-dessus). Cellule vide = aucun rôle accordant un accès = aucune permission.
 
-| Rôle                | Armoire 1 | Armoire 2 | Armoire 3 |
-| ------------------- | --------- | --------- | --------- |
-| Createch            | can_view  |           |           |
-| Membre              | can_view  | can_view  |           |
-| Agent               | can_view  | can_open  |           |
-| Bureau              | can_view  | can_open  | can_edit  |
-| Responsable         | can_open  | can_open  | can_edit  |
-| Comité de direction | can_edit  | can_edit  | can_edit  |
+| Rôle                       | Armoire 1 | Armoire 2 | Armoire 3 |
+| -------------------------- | --------- | --------- | --------- |
+| **_Branche internes_**     |           |           |           |
+| Membre                     | can_view  | can_view  |           |
+| Agent                      | can_view  | can_open  |           |
+| Responsable (matérialiste) | can_open  | can_open  | can_edit  |
+| Bureau                     | can_view  | can_open  | can_edit  |
+| **_Branche externes_**     |           |           |           |
+| Createch                   | can_view  |           |           |
+| Ingénieur de recherche     | can_view  | can_open  |           |
+| **_Gouvernance_**          |           |           |           |
+| Comité de direction        | can_edit  | can_edit  | can_edit  |
 
 ## Dashboard
 
@@ -265,3 +326,11 @@ L'API [`SmartLock-Authentication-Authorization`](https://github.com/DeVinci-FabL
     Correctif : entre l'étape 5 (lookup user) et l'étape 6 (lecture des rôles), ajouter `if not user.enabled: return 403 { allowed: false, reason: "account_revoked" }`. Étendre l'énum `reason` de la réponse pour inclure `account_revoked` (en plus des `card_not_registered`, `no_permission`, `expired` existants).
 
     Même contrôle nécessaire côté login dashboard, mais là Keycloak refuse nativement l'émission de token pour un compte `enabled: false` — pas besoin de check applicatif.
+
+11. **Règle d'anchor de gouvernance à enforcer côté API.** Le CDC pose que les rôles de gouvernance (Codir, Trésorerie, Présidence, Admin sys) ne peuvent être attribués qu'à un compte ayant déjà au moins un rôle de la branche internes (cf. [Branche gouvernance](#branche-gouvernance)). L'API actuelle (`POST /users/{user_id}/roles/{role_name}`) **ne vérifie pas cet invariant** : elle ne fait que le contrôle de privilège de l'appelant (matrice `manages`).
+
+    Correctif : ajouter dans l'endpoint d'attribution de rôle un check avant l'appel Keycloak — si le `role_name` cible appartient à la branche `gouvernance`, lire les rôles actuels du compte cible et refuser l'attribution si aucun rôle de la branche `internes` n'est présent. Réponse `400` avec `detail: "governance_requires_internal_anchor"`.
+
+    Côté révocation : si on retire le dernier rôle interne d'un compte qui a aussi des rôles de gouvernance, refuser la révocation (sinon on se retrouverait avec un Codir « externe pur »). Ou alors, retirer en cascade tous les rôles de gouvernance — à arbitrer, mais le refus strict est plus défensif.
+
+    Note : la modélisation « la branche d'un rôle » doit être codée en dur côté API (table de référence ou enum côté code). Single source of truth avec le dashboard, idéalement même fichier de constantes partagé.
