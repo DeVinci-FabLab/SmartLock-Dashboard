@@ -40,4 +40,15 @@ export const queryKeys = {
 		list: (params: { search?: string; locker_id?: number; category_id?: number }) =>
 			['stocks', 'list', params] as const,
 	},
+	logs: {
+		all: () => ['logs'] as const,
+		list: (params: { skip?: number; limit?: number; locker_id?: number }) =>
+			['logs', 'list', params] as const,
+	},
+	home: {
+		all: () => ['home'] as const,
+		recentActivity: () => ['home', 'recent-activity'] as const,
+		anomalies: () => ['home', 'anomalies'] as const,
+		usersToAttribute: () => ['home', 'users-to-attribute'] as const,
+	},
 };

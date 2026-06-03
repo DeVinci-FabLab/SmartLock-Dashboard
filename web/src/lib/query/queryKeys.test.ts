@@ -90,3 +90,24 @@ describe('queryKeys.stocks', () => {
 		]);
 	});
 });
+
+describe('queryKeys.logs', () => {
+	it('all() returns base', () => {
+		expect(queryKeys.logs.all()).toEqual(['logs']);
+	});
+	it('list() includes params for caching', () => {
+		expect(queryKeys.logs.list({ skip: 0, limit: 50 })).toEqual([
+			'logs',
+			'list',
+			{ skip: 0, limit: 50 },
+		]);
+	});
+});
+
+describe('queryKeys.home', () => {
+	it('exposes recentActivity, anomalies, usersToAttribute', () => {
+		expect(queryKeys.home.recentActivity()).toEqual(['home', 'recent-activity']);
+		expect(queryKeys.home.anomalies()).toEqual(['home', 'anomalies']);
+		expect(queryKeys.home.usersToAttribute()).toEqual(['home', 'users-to-attribute']);
+	});
+});
