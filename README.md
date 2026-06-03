@@ -202,7 +202,7 @@ make docker-dev
 
 ### Prérequis
 
-- **Node.js 20+** et **npm**
+- **Node.js 22+** et **npm**
 - **Docker** + **Docker Compose v2** (optionnel mais recommandé)
 - **GNU Make** (préinstallé sur macOS/Linux ; Windows : via WSL ou Chocolatey)
 
@@ -225,30 +225,27 @@ make docker-logs         # suivre les logs du conteneur
 make docker-down         # arrêt
 ```
 
-### Préparation production (à venir)
+### Production
 
-Le `docker/Dockerfile` de production existe mais nécessite de passer à `@sveltejs/adapter-node` (actuellement `adapter-auto`) :
-
-```bash
-npm --prefix web install -D @sveltejs/adapter-node
-```
-
-Puis modifier `web/svelte.config.js` :
-
-```js
-import adapter from '@sveltejs/adapter-node';
-// ...
-kit: {
-  adapter: adapter();
-}
-```
-
-Ensuite :
+Le `docker/Dockerfile` de production utilise `@sveltejs/adapter-node` et tourne sur Node 22 alpine. Le `compose.prod.yaml` charge automatiquement `web/.env` côté host et expose un healthcheck `GET /health` (30s interval, 3 retries) que Docker / l'orchestrateur lisent.
 
 ```bash
-make docker-prod         # build + lance l'image de prod sur :3000
+make docker-prod         # build + up sur :3000 (attaché au network pangolin-fab)
 make docker-prod-down    # arrêt
 ```
+
+Le conteneur expose `/health` qui retourne `{"status":"ok"}` — utilisé pour le healthcheck Docker et toute supervision externe.
+
+### Tests
+
+```bash
+make check               # svelte-check (types)
+npm --prefix web test    # vitest unit
+npm --prefix web run test:e2e   # playwright + axe-core a11y smoke
+npm --prefix web run lint        # eslint
+```
+
+La suite E2E suppose le **dev bypass** (pas de `KEYCLOAK_ISSUER` dans `web/.env`). Sous Keycloak réel, les specs auth (armoires, items, stocks, roles, logs, home, palette, a11y des routes auth) sont skippées proprement avec un motif clair dans le rapport.
 
 ## Commandes Make
 
@@ -275,28 +272,32 @@ make docker-prod-down    # arrêt
 
 Aucune n'est nécessaire pour démarrer en dev sur l'UI seule. Au fur et à mesure que les couches s'ajoutent, créer un `web/.env` (non commité — SvelteKit lit le `.env` depuis la racine du projet, qui est `web/`) :
 
+Le fichier de référence est [`web/.env.example`](./web/.env.example). À reporter dans `web/.env` (non commité) :
+
 ```dotenv
-# À venir, exemples
+# Backend API
+PUBLIC_SMARTLOCK_API_URL=https://api.smartlock.devinci-fablab.fr
 
-# Keycloak (client public, flow OIDC Auth Code + PKCE — pas de secret côté navigateur)
-KEYCLOAK_ISSUER=https://keycloak.devinci.fr/realms/fablab
+# Keycloak (realm dev pour tests, prod pour production)
+KEYCLOAK_ISSUER=https://auth.devinci-fablab.fr/realms/dev
 KEYCLOAK_CLIENT_ID=smartlock-dashboard
+KEYCLOAK_CLIENT_SECRET=...   # depuis Keycloak admin → Credentials
+KEYCLOAK_REDIRECT_URI=https://dashboard.smartlock.devinci-fablab.fr/login/callback
+KEYCLOAK_POST_LOGOUT_URI=https://dashboard.smartlock.devinci-fablab.fr
 
-# API SmartLock-Authentication-Authorization (source de vérité)
-SMARTLOCK_API_URL=https://api.smartlock.devinci-fablab.fr
-
-# Secret pour chiffrer les cookies de session côté SvelteKit
-AUTH_SECRET=...
+# Cookie de session SvelteKit (32+ bytes random — `openssl rand -hex 32`)
+SESSION_SECRET=...
 ```
 
 Pas de `DATABASE_URL` ni de credentials rustfs côté dashboard : le dashboard ne parle ni à PostgreSQL ni à rustfs directement, c'est l'API qui en a la responsabilité.
 
-Un `web/.env.example` sera maintenu pour documenter les variables attendues.
+**Mode dev bypass** : si `KEYCLOAK_ISSUER` est vide en `dev`, le dashboard authentifie un faux user T0 avec toutes les capacités — utile pour travailler sur le chrome et les routes sans monter Keycloak.
 
 ## Documents de référence
 
 - [`CDC.md`](./CDC.md) — cahier des charges complet : modèle ACM en tiers, rôles système et personnalisés, flags `manager` / `role_admin`, cycle de vie compte, capacités spécifiques, audit log, workflow Trésorerie, divergences avec l'API d'auth actuelle.
 - [`SmartLock-Authentication-Authorization`](https://github.com/DeVinci-FabLab/SmartLock-Authentication-Authorization) — API backend FastAPI, source de vérité pour identités, rôles, permissions, audit. Le dashboard est son client.
+- [`docs/superpowers/plans/`](./docs/superpowers/plans/) — historique des phases d'implémentation (P0 foundation → P4 audit + polish) avec, pour chaque phase, ce qui a été livré, ce qui a été explicitement coupé, et les dépendances backend.
 
 ## Licence
 
