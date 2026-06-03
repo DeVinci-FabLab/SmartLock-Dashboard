@@ -28,6 +28,10 @@ export default ts.config(
 				},
 			],
 			'svelte/no-navigation-without-resolve': 'off',
+			// False-positives on URLSearchParams/Map/Set used as local builders in
+			// async functions or event handlers. The rule is for reactive state,
+			// but it can't tell the difference. We rely on review + tests.
+			'svelte/prefer-svelte-reactivity': 'off',
 		},
 	},
 	{
