@@ -47,6 +47,12 @@ export function can(user: UserContext | null, action: Action): boolean {
 			return permissionAtLeast(armoireLevel(user, action.armoireId), 'can_open');
 		case 'edit_armoire':
 			return permissionAtLeast(armoireLevel(user, action.armoireId), 'can_edit');
+		case 'create_armoire':
+			return hasCapacity(user, 'create_lockers');
+		case 'delete_armoire':
+			return hasCapacity(user, 'create_lockers');
+		case 'manage_armoire_permissions':
+			return hasFlag(user, 'is_role_admin');
 		case 'view_users':
 			return hasFlag(user, 'is_manager') || hasFlag(user, 'is_role_admin');
 		case 'manage_users':

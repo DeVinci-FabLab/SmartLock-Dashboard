@@ -18,5 +18,9 @@ export const queryKeys = {
 	armoires: {
 		all: () => ['armoires'] as const,
 		list: () => ['armoires', 'list'] as const,
+		detail: (id: number) => ['armoires', 'detail', id] as const,
+		stock: (id: number) => ['armoires', 'detail', id, 'stock'] as const,
+		permissions: (id: number) => ['armoires', 'detail', id, 'permissions'] as const,
+		logs: (id: number) => ['armoires', 'detail', id, 'logs'] as const,
 	},
 };

@@ -47,4 +47,10 @@ describe('queryKeys.armoires', () => {
 	it('list() returns ["armoires", "list"]', () => {
 		expect(queryKeys.armoires.list()).toEqual(['armoires', 'list']);
 	});
+	it('detail / stock / permissions / logs include the id', () => {
+		expect(queryKeys.armoires.detail(7)).toEqual(['armoires', 'detail', 7]);
+		expect(queryKeys.armoires.stock(7)).toEqual(['armoires', 'detail', 7, 'stock']);
+		expect(queryKeys.armoires.permissions(7)).toEqual(['armoires', 'detail', 7, 'permissions']);
+		expect(queryKeys.armoires.logs(7)).toEqual(['armoires', 'detail', 7, 'logs']);
+	});
 });

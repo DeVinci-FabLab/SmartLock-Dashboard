@@ -164,4 +164,23 @@ describe('can — governance actions', () => {
 	it('null user always denied', () => {
 		expect(can(null, { type: 'view_users' })).toBe(false);
 	});
+	it('create_armoire / delete_armoire require create_lockers capacity', () => {
+		const withCap = user({
+			roles: [role({ name: 'a', tier: 2, capacities: ['create_lockers'] as Capacity[] })],
+		});
+		const without = user({ roles: [role({ name: 'a', tier: 2 })] });
+		expect(can(withCap, { type: 'create_armoire' })).toBe(true);
+		expect(can(withCap, { type: 'delete_armoire' })).toBe(true);
+		expect(can(without, { type: 'create_armoire' })).toBe(false);
+		expect(can(without, { type: 'delete_armoire' })).toBe(false);
+	});
+	it('manage_armoire_permissions requires is_role_admin flag', () => {
+		const u = user({ roles: [role({ name: 'a', tier: 1, is_role_admin: true })] });
+		expect(can(u, { type: 'manage_armoire_permissions' })).toBe(true);
+		expect(
+			can(user({ roles: [role({ name: 'a', tier: 1 })] }), {
+				type: 'manage_armoire_permissions',
+			}),
+		).toBe(false);
+	});
 });

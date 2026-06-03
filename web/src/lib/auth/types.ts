@@ -56,6 +56,9 @@ export type Action =
 	| { type: 'view_armoire'; armoireId: number }
 	| { type: 'open_armoire'; armoireId: number }
 	| { type: 'edit_armoire'; armoireId: number }
+	| { type: 'create_armoire' }
+	| { type: 'delete_armoire' }
+	| { type: 'manage_armoire_permissions' }
 	| { type: 'view_users' }
 	| { type: 'manage_users' }
 	| { type: 'view_roles' }
