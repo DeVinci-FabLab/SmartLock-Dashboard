@@ -1,13 +1,10 @@
 # syntax=docker/dockerfile:1.7
-# Image de production — build SvelteKit servi par Node.
-#
-# Prérequis : svelte.config.js doit utiliser @sveltejs/adapter-node.
-#   npm install -D @sveltejs/adapter-node
-#   puis dans svelte.config.js :
-#     import adapter from '@sveltejs/adapter-node';
+# Image de production — build SvelteKit servi par Node (adapter-node).
+# Node 22 LTS — required by lint-staged 17+ (used in devDeps during the
+# build stage). The runtime stage runs on the same base for consistency.
 
 # ---- Stage 1 : build ----
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -18,7 +15,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev
 
 # ---- Stage 2 : runtime ----
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
