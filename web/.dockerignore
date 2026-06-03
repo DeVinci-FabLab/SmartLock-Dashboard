@@ -38,6 +38,20 @@ decision-plan.md
 LICENSE
 Makefile
 
+# Tests & artefacts CI (jamais utilisés au runtime)
+tests
+playwright-report
+blob-report
+test-results
+playwright/.cache
+coverage
+
+# Hooks git locaux
+.husky
+
+# Logs
+*.log
+
 # Docker (éviter la récursion)
 docker
 .dockerignore

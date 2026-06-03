@@ -1,5 +1,4 @@
 # Compose de production — image construite, pas de bind mount.
-# Prérequis : web/svelte.config.js doit utiliser @sveltejs/adapter-node.
 # Lancer depuis la racine : make docker-prod
 
 name: smartlock-dashboard
@@ -10,8 +9,12 @@ services:
       context: ../web
       dockerfile: ../docker/Dockerfile
     container_name: smartlock-dashboard
+    # Port bound to loopback only — Pangolin (reverse proxy) reaches the
+    # container by name over the `pangolin-fab` network, no external
+    # exposure needed. Loopback keeps `curl http://127.0.0.1:3000/health`
+    # working from the host for ops debugging.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -22,9 +25,37 @@ services:
     env_file:
       - ../web/.env
     restart: unless-stopped
+    # ---- Hardening ----
+    # Non-root user, matches the USER in the Dockerfile (defense in depth).
+    user: "node"
+    # Root FS read-only; /tmp stays writable via tmpfs for the few libs
+    # that need scratch space (Vite cache isn't used at runtime, just keeping
+    # one tmpfs slot in case anything inside Node touches /tmp).
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Drop every Linux capability — Node needs none of them.
+    cap_drop:
+      - ALL
+    # Block setuid / setgid escalation paths inside the container.
+    security_opt:
+      - no-new-privileges:true
+    # Proper PID 1 — tini-equivalent, reaps zombies and forwards SIGTERM
+    # so `docker stop` / orchestrator drains are clean.
+    init: true
+    # Resource ceilings — protect the host from a runaway process.
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    # Log rotation so a chatty container doesn't fill the host disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Re-states the image healthcheck for explicit ops visibility; the
+    # baked-in HEALTHCHECK directive would also be applied by the daemon.
     healthcheck:
-      # node:22-alpine has wget via busybox; -q silences output, -O- pipes
-      # to stdout so non-200 makes wget exit non-zero, failing the check.
       test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/health || exit 1"]
       interval: 30s
       timeout: 5s
