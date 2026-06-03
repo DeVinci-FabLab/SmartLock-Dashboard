@@ -1,0 +1,27 @@
+import { expect, test } from '@playwright/test';
+
+async function isAuthenticated(page: import('@playwright/test').Page): Promise<boolean> {
+	return await page.evaluate(() => document.querySelector('[data-sidebar="menu-button"]') !== null);
+}
+
+test.describe('Stocks (dev bypass — backend empty)', () => {
+	test('flat view renders with filters', async ({ page }) => {
+		await page.goto('/stocks');
+		test.skip(!(await isAuthenticated(page)), 'requires dev bypass (auth session)');
+		await expect(page.getByRole('heading', { name: 'Stocks', level: 1 })).toBeVisible();
+		await expect(page.getByPlaceholder(/Rechercher par item/)).toBeVisible();
+	});
+
+	test('Exporter CSV button is visible for T0', async ({ page }) => {
+		await page.goto('/stocks');
+		test.skip(!(await isAuthenticated(page)), 'requires dev bypass (auth session)');
+		await expect(page.getByRole('button', { name: /Exporter CSV/ })).toBeVisible();
+	});
+
+	test('sidebar Stocks link is visible', async ({ page }) => {
+		await page.goto('/');
+		test.skip(!(await isAuthenticated(page)), 'requires dev bypass (auth session)');
+		const sidebarLink = page.locator('[data-sidebar="menu-button"]', { hasText: 'Stocks' });
+		await expect(sidebarLink).toBeVisible();
+	});
+});

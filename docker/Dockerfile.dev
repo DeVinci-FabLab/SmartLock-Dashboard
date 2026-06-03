@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1.7
+# Image de développement — Vite dev server avec HMR.
+# Le code source est monté en bind via compose pour le hot reload.
+# Node 22 pour rester aligné avec l'image de prod (lint-staged 17+ exige
+# Node 22.22+).
+
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Installation des dépendances en premier (couche cache)
+COPY package.json package-lock.json* ./
+RUN npm ci --no-audit --no-fund
+
+# Copie de fallback si le bind mount n'est pas utilisé
+COPY --chown=node:node . .
+
+EXPOSE 5173
+
+USER node
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

@@ -1,12 +1,18 @@
 node_modules
 
-# Output
+# SvelteKit / build outputs (peuvent apparaître dans web/)
+.svelte-kit
+build
 .output
 .vercel
 .netlify
 .wrangler
-/.svelte-kit
-/build
+
+# Playwright
+test-results
+playwright-report
+blob-report
+playwright/.cache
 
 # OS
 .DS_Store
@@ -21,3 +27,18 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+SmartLock-Authentication-Authorization/
+
+/docs/
