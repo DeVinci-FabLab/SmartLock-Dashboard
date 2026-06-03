@@ -17,3 +17,8 @@ services:
     environment:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
+    networks:
+      - pangolin-fab
+networks:
+  pangolin-fab:
+    external: true

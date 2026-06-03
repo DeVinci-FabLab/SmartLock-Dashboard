@@ -15,4 +15,15 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+    # Loads PUBLIC_SMARTLOCK_API_URL, KEYCLOAK_*, SESSION_SECRET.
+    # File path is relative to this compose file (docker/), so this reads
+    # `<repo>/web/.env`. Use a separate `.env.prod` on the prod host if you
+    # want to keep dev and prod credentials separate, then change this path.
+    env_file:
+      - ../web/.env
     restart: unless-stopped
+    networks:
+      - pangolin-fab
+networks:
+  pangolin-fab:
+    external: true
