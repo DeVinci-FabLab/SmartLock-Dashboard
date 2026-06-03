@@ -22,6 +22,14 @@ services:
     env_file:
       - ../web/.env
     restart: unless-stopped
+    healthcheck:
+      # node:22-alpine has wget via busybox; -q silences output, -O- pipes
+      # to stdout so non-200 makes wget exit non-zero, failing the check.
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - pangolin-fab
 networks:

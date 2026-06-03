@@ -21,7 +21,7 @@ if (!dev && !config.keycloak.issuer) {
 	);
 }
 
-const PUBLIC_PATHS = ['/', '/login', '/login/callback', '/logout'];
+const PUBLIC_PATHS = ['/', '/login', '/login/callback', '/logout', '/health'];
 function isPublic(pathname: string): boolean {
 	return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }

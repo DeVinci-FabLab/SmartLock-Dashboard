@@ -15,6 +15,14 @@ test('root renders something local — never bounces straight to Keycloak', asyn
 	expect(['/', '/armoires']).toContain(url.pathname);
 });
 
+test('/health returns 200 with status: ok, unauthenticated', async ({ request }) => {
+	// Liveness probe consumed by Docker healthcheck. Must stay public and
+	// 200 forever — any regression here will silently break orchestration.
+	const res = await request.get('/health');
+	expect(res.status()).toBe(200);
+	expect(await res.json()).toEqual({ status: 'ok' });
+});
+
 test('root shows either the landing CTA or the Armoires dashboard', async ({ page }) => {
 	await page.goto('/');
 	const url = new URL(page.url());
