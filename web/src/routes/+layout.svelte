@@ -5,6 +5,7 @@
 	import { SidebarInset, SidebarProvider } from '$lib/components/ui/sidebar';
 	import AppSidebar from '$lib/components/layout/AppSidebar.svelte';
 	import AppTopbar from '$lib/components/layout/AppTopbar.svelte';
+	import CommandPalette from '$lib/components/palette/CommandPalette.svelte';
 	import QueryProvider from '$lib/components/query/QueryProvider.svelte';
 	import { page } from '$app/state';
 
@@ -34,6 +35,7 @@
 					</div>
 				{/if}
 				<AppTopbar />
+				<CommandPalette />
 				<main class="flex-1 p-6">
 					<div class="mx-auto max-w-7xl">
 						{@render children?.()}
