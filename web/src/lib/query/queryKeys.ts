@@ -23,4 +23,21 @@ export const queryKeys = {
 		permissions: (id: number) => ['armoires', 'detail', id, 'permissions'] as const,
 		logs: (id: number) => ['armoires', 'detail', id, 'logs'] as const,
 	},
+	items: {
+		all: () => ['items'] as const,
+		list: (params: { search?: string; category_id?: number; skip?: number }) =>
+			['items', 'list', params] as const,
+		detail: (id: number) => ['items', 'detail', id] as const,
+		stockSpread: (id: number) => ['items', 'detail', id, 'stocks'] as const,
+		lowStock: () => ['items', 'low-stock'] as const,
+	},
+	categories: {
+		all: () => ['categories'] as const,
+		list: () => ['categories', 'list'] as const,
+	},
+	stocks: {
+		all: () => ['stocks'] as const,
+		list: (params: { search?: string; locker_id?: number; category_id?: number }) =>
+			['stocks', 'list', params] as const,
+	},
 };

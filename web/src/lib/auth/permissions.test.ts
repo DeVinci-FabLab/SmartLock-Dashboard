@@ -183,4 +183,37 @@ describe('can — governance actions', () => {
 			}),
 		).toBe(false);
 	});
+	it('view_items is universally allowed for authenticated users', () => {
+		expect(can(user({ roles: [] }), { type: 'view_items' })).toBe(true);
+		expect(can(user({ roles: [role({ name: 'a', tier: 4 })] }), { type: 'view_items' })).toBe(true);
+		expect(can(null, { type: 'view_items' })).toBe(false);
+	});
+	it('manage_items / manage_categories require validate_catalog capacity', () => {
+		const withCap = user({
+			roles: [role({ name: 'a', tier: 3, capacities: ['validate_catalog'] as Capacity[] })],
+		});
+		const without = user({ roles: [role({ name: 'a', tier: 3 })] });
+		expect(can(withCap, { type: 'manage_items' })).toBe(true);
+		expect(can(withCap, { type: 'manage_categories' })).toBe(true);
+		expect(can(without, { type: 'manage_items' })).toBe(false);
+		expect(can(without, { type: 'manage_categories' })).toBe(false);
+	});
+	it('view_low_stock passes for manage_stock_thresholds OR T1+', () => {
+		const withCap = user({
+			roles: [role({ name: 'a', tier: 4, capacities: ['manage_stock_thresholds'] as Capacity[] })],
+		});
+		const tier1 = user({ roles: [role({ name: 'a', tier: 1 })] });
+		const tier3 = user({ roles: [role({ name: 'a', tier: 3 })] });
+		expect(can(withCap, { type: 'view_low_stock' })).toBe(true);
+		expect(can(tier1, { type: 'view_low_stock' })).toBe(true);
+		expect(can(tier3, { type: 'view_low_stock' })).toBe(false);
+	});
+	it('export_stocks requires T1+', () => {
+		const tier0 = user({ roles: [role({ name: 'a', tier: 0 })] });
+		const tier1 = user({ roles: [role({ name: 'a', tier: 1 })] });
+		const tier2 = user({ roles: [role({ name: 'a', tier: 2 })] });
+		expect(can(tier0, { type: 'export_stocks' })).toBe(true);
+		expect(can(tier1, { type: 'export_stocks' })).toBe(true);
+		expect(can(tier2, { type: 'export_stocks' })).toBe(false);
+	});
 });

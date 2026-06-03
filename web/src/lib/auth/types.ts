@@ -64,4 +64,9 @@ export type Action =
 	| { type: 'view_roles' }
 	| { type: 'manage_roles' }
 	| { type: 'view_logs' }
-	| { type: 'export_logs' };
+	| { type: 'export_logs' }
+	| { type: 'view_items' }
+	| { type: 'manage_items' }
+	| { type: 'manage_categories' }
+	| { type: 'view_low_stock' }
+	| { type: 'export_stocks' };

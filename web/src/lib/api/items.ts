@@ -1,4 +1,13 @@
-import { categorySchema, itemListResponseSchema, itemSchema } from '$lib/schemas/item';
+import {
+	categorySchema,
+	itemListResponseSchema,
+	itemSchema,
+	lowStockAlertListSchema,
+	type CategoryCreatePayload,
+	type CategoryUpdatePayload,
+	type ItemCreatePayload,
+	type ItemUpdatePayload,
+} from '$lib/schemas/item';
 import { z } from 'zod';
 import type { ApiClient } from './client';
 
@@ -13,5 +22,15 @@ export const itemsApi = (client: ApiClient) => ({
 		return client.get(`/items/${suffix}`, itemListResponseSchema);
 	},
 	get: (id: number) => client.get(`/items/${id}`, itemSchema),
+	create: (body: ItemCreatePayload) => client.post('/items/', body, itemSchema),
+	update: (id: number, body: ItemUpdatePayload) =>
+		client.put(`/items/${id}`, body, itemSchema),
+	delete: (id: number) => client.delete(`/items/${id}`),
+	lowStock: () => client.get('/items/alerts/low-stock', lowStockAlertListSchema),
 	listCategories: () => client.get('/categories/', categoryListSchema),
+	createCategory: (body: CategoryCreatePayload) =>
+		client.post('/categories/', body, categorySchema),
+	updateCategory: (id: number, body: CategoryUpdatePayload) =>
+		client.put(`/categories/${id}`, body, categorySchema),
+	deleteCategory: (id: number) => client.delete(`/categories/${id}`),
 });

@@ -54,3 +54,39 @@ describe('queryKeys.armoires', () => {
 		expect(queryKeys.armoires.logs(7)).toEqual(['armoires', 'detail', 7, 'logs']);
 	});
 });
+
+describe('queryKeys.items', () => {
+	it('list() includes params for caching', () => {
+		expect(queryKeys.items.list({ search: 'foo' })).toEqual([
+			'items',
+			'list',
+			{ search: 'foo' },
+		]);
+	});
+	it('detail() and stockSpread() differ by suffix', () => {
+		expect(queryKeys.items.detail(7)).toEqual(['items', 'detail', 7]);
+		expect(queryKeys.items.stockSpread(7)).toEqual(['items', 'detail', 7, 'stocks']);
+	});
+	it('lowStock() returns base key', () => {
+		expect(queryKeys.items.lowStock()).toEqual(['items', 'low-stock']);
+	});
+});
+
+describe('queryKeys.categories', () => {
+	it('all() returns base', () => {
+		expect(queryKeys.categories.all()).toEqual(['categories']);
+	});
+	it('list() returns ["categories", "list"]', () => {
+		expect(queryKeys.categories.list()).toEqual(['categories', 'list']);
+	});
+});
+
+describe('queryKeys.stocks', () => {
+	it('list() includes params', () => {
+		expect(queryKeys.stocks.list({ search: 'tube' })).toEqual([
+			'stocks',
+			'list',
+			{ search: 'tube' },
+		]);
+	});
+});

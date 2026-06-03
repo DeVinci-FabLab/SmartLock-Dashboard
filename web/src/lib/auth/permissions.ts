@@ -64,5 +64,15 @@ export function can(user: UserContext | null, action: Action): boolean {
 		case 'view_logs':
 		case 'export_logs':
 			return hasCapacity(user, 'audit_log_full') || requireTier(user, 0);
+		case 'view_items':
+			return true;
+		case 'manage_items':
+			return hasCapacity(user, 'validate_catalog');
+		case 'manage_categories':
+			return hasCapacity(user, 'validate_catalog');
+		case 'view_low_stock':
+			return hasCapacity(user, 'manage_stock_thresholds') || requireTier(user, 1);
+		case 'export_stocks':
+			return requireTier(user, 1);
 	}
 }
