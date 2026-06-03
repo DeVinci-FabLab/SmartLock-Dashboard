@@ -1,39 +1,47 @@
 /**
- * Tiers from the CDC ACM model. T0 is highest authority, T5 lowest.
- * Lower numeric value = higher tier.
+ * Backend role tiers are integers 0–5. 0 is highest authority (presidency,
+ * admin sys); 5 is reserved for the system `membre` role. Custom roles are
+ * created in the 0–4 range only.
  */
-export type Tier = 'T0' | 'T1' | 'T2' | 'T3' | 'T4' | 'T5';
+export type Tier = 0 | 1 | 2 | 3 | 4 | 5;
 
 /**
- * Permission levels on an armoire, ordered.
+ * Permission level on an armoire: at most one value per (role, armoire).
+ * `none` is the dashboard convenience for "no row exists in the table".
  */
-export type PermissionLevel = 'none' | 'view' | 'open' | 'edit';
+export type PermissionLevel = 'none' | 'can_view' | 'can_open' | 'can_edit';
 
 /**
- * A role held by a user.
+ * The 8 capacities a role can grant. Capacities are orthogonal to flags
+ * (is_manager / is_role_admin) and to the permission matrix — they gate
+ * specific dashboard actions like reading audit logs or purchasing.
  */
+export type Capacity =
+	| 'create_lockers'
+	| 'configure_system'
+	| 'audit_log_full'
+	| 'purchase_orders'
+	| 'manage_suppliers'
+	| 'cascade_delete_role'
+	| 'validate_catalog'
+	| 'manage_stock_thresholds';
+
 export interface Role {
+	id?: number;
 	name: string;
+	label: string;
 	tier: Tier;
-	manager: boolean;
-	role_admin: boolean;
-	audit_viewer: boolean;
-	system: boolean;
+	is_system: boolean;
+	is_manager: boolean;
+	is_role_admin: boolean;
+	capacities: Capacity[];
 }
 
-/**
- * Per-armoire permission for the current user.
- * Computed by the API based on the user's roles ∪ direct overrides.
- */
 export interface ArmoirePermission {
 	armoire_id: number;
 	level: PermissionLevel;
 }
 
-/**
- * The authenticated user as exposed to client code.
- * Mirrors the JWT claims + computed effective permissions.
- */
 export interface UserContext {
 	id: string;
 	username: string;
@@ -44,9 +52,6 @@ export interface UserContext {
 	armoirePermissions: ArmoirePermission[];
 }
 
-/**
- * Actions that can be permission-checked via can().
- */
 export type Action =
 	| { type: 'view_armoire'; armoireId: number }
 	| { type: 'open_armoire'; armoireId: number }

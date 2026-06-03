@@ -19,17 +19,17 @@
 			icon: Lock,
 			cls: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-900',
 		},
-		view: {
+		can_view: {
 			label: 'Voir',
 			icon: Eye,
 			cls: 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200',
 		},
-		open: {
+		can_open: {
 			label: 'Ouvrir',
 			icon: Key,
 			cls: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200',
 		},
-		edit: {
+		can_edit: {
 			label: 'Éditer',
 			icon: Pencil,
 			cls: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200',

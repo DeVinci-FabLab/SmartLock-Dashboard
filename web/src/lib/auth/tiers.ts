@@ -1,26 +1,24 @@
 import type { Tier } from './types';
 
-const RANK: Record<Tier, number> = {
-	T0: 0,
-	T1: 1,
-	T2: 2,
-	T3: 3,
-	T4: 4,
-	T5: 5,
-};
-
-export function tierRank(tier: Tier): number {
-	return RANK[tier];
-}
+/**
+ * Tiers are stored as integers where 0 is the highest authority. Compare
+ * directly: `a <= b` means "a is higher or equal authority". The helpers
+ * below exist for caller intent — they don't do anything you couldn't do
+ * with `<` and `<=`.
+ */
 
 export function compareTiers(a: Tier, b: Tier): number {
-	return tierRank(a) - tierRank(b);
+	return a - b;
 }
 
 export function isHigherTier(a: Tier, b: Tier): boolean {
-	return compareTiers(a, b) <= 0;
+	return a <= b;
 }
 
 export function isStrictlyHigherTier(a: Tier, b: Tier): boolean {
-	return compareTiers(a, b) < 0;
+	return a < b;
+}
+
+export function tierLabel(tier: Tier): string {
+	return `T${tier}`;
 }

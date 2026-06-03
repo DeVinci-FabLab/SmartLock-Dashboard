@@ -18,3 +18,14 @@ export const userSchema = z.object({
 export const userListResponseSchema = z.array(userSchema);
 
 export type UserDTO = z.infer<typeof userSchema>;
+
+export const userListParamsSchema = z.object({
+	search: z.string().optional(),
+	first: z.number().int().nonnegative().optional(),
+	max_results: z.number().int().positive().max(200).optional(),
+	skip: z.number().int().nonnegative().optional(),
+	limit: z.number().int().positive().max(200).optional(),
+	enabled: z.boolean().optional(),
+});
+
+export type UserListParams = z.infer<typeof userListParamsSchema>;

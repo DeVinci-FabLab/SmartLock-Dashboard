@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { tierSchema } from '$lib/schemas/role';
+import { capacitySchema, tierSchema } from '$lib/schemas/role';
 import { permissionLevelSchema } from '$lib/schemas/permission';
 import type { ApiClient } from './client';
 
@@ -12,11 +12,12 @@ export const meResponseSchema = z.object({
 	roles: z.array(
 		z.object({
 			name: z.string(),
+			label: z.string(),
 			tier: tierSchema,
-			manager: z.boolean(),
-			role_admin: z.boolean(),
-			audit_viewer: z.boolean(),
-			system: z.boolean(),
+			is_system: z.boolean(),
+			is_manager: z.boolean(),
+			is_role_admin: z.boolean(),
+			capacities: z.array(capacitySchema),
 		}),
 	),
 	armoirePermissions: z.array(

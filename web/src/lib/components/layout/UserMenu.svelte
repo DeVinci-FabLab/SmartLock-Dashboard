@@ -26,7 +26,7 @@
 					.toUpperCase()
 			: '?',
 	);
-	let tier = $derived(user ? highestTier(user) : 'T5');
+	let tier = $derived(user ? highestTier(user) : 5);
 </script>
 
 {#if user}

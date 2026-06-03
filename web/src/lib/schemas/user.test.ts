@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { userListResponseSchema, userSchema } from './user';
+import { userListParamsSchema, userListResponseSchema, userSchema } from './user';
 
 describe('userSchema', () => {
 	const valid = {
@@ -40,5 +40,22 @@ describe('userListResponseSchema', () => {
 			enabled: true,
 		};
 		expect(() => userListResponseSchema.parse([valid, valid])).not.toThrow();
+	});
+});
+
+describe('userListParamsSchema', () => {
+	it('accepts empty (all defaults)', () => {
+		expect(() => userListParamsSchema.parse({})).not.toThrow();
+	});
+	it('accepts limit + skip', () => {
+		expect(() =>
+			userListParamsSchema.parse({ limit: 50, skip: 0, search: 'al', enabled: true }),
+		).not.toThrow();
+	});
+	it('rejects negative limit', () => {
+		expect(() => userListParamsSchema.parse({ limit: -1 })).toThrow();
+	});
+	it('rejects limit over 200', () => {
+		expect(() => userListParamsSchema.parse({ limit: 9999 })).toThrow();
 	});
 });
