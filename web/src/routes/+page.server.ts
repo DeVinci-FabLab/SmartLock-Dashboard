@@ -1,9 +1,11 @@
-import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	// Authenticated users skip the landing and go straight to the app.
-	// Unauthenticated users see the landing (rendered by +page.svelte).
-	if (locals.user) throw redirect(303, '/armoires');
+/**
+ * Authenticated users get the home overview rendered by +page.svelte;
+ * unauthenticated visitors get the landing block in the same file.
+ * No redirect — the layout already conditionally renders chrome based
+ * on whether `data.user` is set upstream.
+ */
+export const load: PageServerLoad = async () => {
 	return {};
 };
