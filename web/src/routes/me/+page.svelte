@@ -6,14 +6,13 @@
 	import RoleBadge from '$lib/components/primitives/RoleBadge.svelte';
 	import MyActivitySection from '$lib/components/me/MyActivitySection.svelte';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
-	import { config } from '$lib/config';
 	import type { UserContext } from '$lib/auth/types';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	let user = $derived(page.data.user as UserContext | null);
-
-	let accountConsoleUrl = $derived(
-		config.keycloak.issuer ? `${config.keycloak.issuer}/account/` : '',
-	);
+	let accountConsoleUrl = $derived(data.accountConsoleUrl);
 </script>
 
 <PageHeader title="Mon profil" description="Identité Keycloak et activité personnelle." />
