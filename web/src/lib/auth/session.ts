@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { dev } from '$app/environment';
 import type { Cookies } from '@sveltejs/kit';
 import { config } from '$lib/config';
 import type { UserContext } from './types';
@@ -7,7 +8,7 @@ const SESSION_COOKIE = 'smartlock_session';
 const COOKIE_OPTIONS = {
 	path: '/',
 	httpOnly: true,
-	secure: process.env.NODE_ENV === 'production',
+	secure: !dev,
 	sameSite: 'lax' as const,
 	maxAge: 60 * 60 * 24 * 7, // 7 days
 };

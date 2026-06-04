@@ -33,15 +33,23 @@ async function getJwks(): Promise<ReturnType<typeof createRemoteJWKSet>> {
 
 /**
  * Verifies the access token signature against Keycloak's JWKS and validates
- * the issuer claim. Returns the parsed payload on success, throws otherwise.
- * Token expiry is enforced by Session.expiresAt; we still let `jwtVerify`
- * check `exp` and `iat` as defence-in-depth.
+ * the issuer, audience, and `azp` (authorized party) claims. Returns the
+ * parsed payload on success, throws otherwise. Token expiry is enforced by
+ * Session.expiresAt; we still let `jwtVerify` check `exp` and `iat` as
+ * defence-in-depth. Pinning `azp` blocks tokens issued by other clients in
+ * the same realm (e.g. service accounts like `smartlock-api`).
  */
 export async function verifyAccessToken(token: string): Promise<JWTPayload> {
 	const jwks = await getJwks();
 	const { payload } = await jwtVerify(token, jwks, {
 		issuer: config.keycloak.issuer,
+		audience: config.keycloak.clientId,
 	});
+	if (payload.azp !== config.keycloak.clientId) {
+		throw new Error(
+			`Token azp mismatch: expected ${config.keycloak.clientId}, got ${String(payload.azp)}`,
+		);
+	}
 	return payload;
 }
 
