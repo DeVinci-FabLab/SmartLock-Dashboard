@@ -33,17 +33,26 @@ async function getJwks(): Promise<ReturnType<typeof createRemoteJWKSet>> {
 
 /**
  * Verifies the access token signature against Keycloak's JWKS and validates
- * the issuer, audience, and `azp` (authorized party) claims. Returns the
- * parsed payload on success, throws otherwise. Token expiry is enforced by
+ * the issuer + `azp` (authorized party) claims. Returns the parsed payload
+ * on success, throws otherwise. Token expiry is enforced by
  * Session.expiresAt; we still let `jwtVerify` check `exp` and `iat` as
- * defence-in-depth. Pinning `azp` blocks tokens issued by other clients in
- * the same realm (e.g. service accounts like `smartlock-api`).
+ * defence-in-depth.
+ *
+ * `aud` is intentionally not validated: Keycloak's default access token
+ * carries `aud: "account"` (the built-in account-management client) unless
+ * an explicit Audience mapper is configured on the client, which would
+ * cause `jwtVerify` to reject every legitimate token. The backend takes
+ * the same stance (`verify_aud=False` in `core/keycloak.py`).
+ *
+ * Pinning `azp` does the real work of blocking tokens issued by other
+ * clients in the same realm (`smartlock-api`, `smartlock-lockers`,
+ * `nfc-scanner`). `azp` is set by Keycloak to the client_id that
+ * obtained the token, independent of audience mapper config.
  */
 export async function verifyAccessToken(token: string): Promise<JWTPayload> {
 	const jwks = await getJwks();
 	const { payload } = await jwtVerify(token, jwks, {
 		issuer: config.keycloak.issuer,
-		audience: config.keycloak.clientId,
 	});
 	if (payload.azp !== config.keycloak.clientId) {
 		throw new Error(
