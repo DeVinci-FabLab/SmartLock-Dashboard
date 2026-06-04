@@ -54,13 +54,26 @@ export async function verifyAccessToken(token: string): Promise<JWTPayload> {
 	const { payload } = await jwtVerify(token, jwks, {
 		issuer: config.keycloak.issuer,
 	});
-	// Per OIDC spec, `azp` is optional when a token has a single audience —
-	// Keycloak may omit it depending on client config. Only reject when it's
-	// present AND points at a different client (the foreign-client case we
-	// want to block). Absence is treated as "no information", not "mismatch".
-	if (payload.azp !== undefined && payload.azp !== config.keycloak.clientId) {
+	// The token must tie itself to *this* client via at least one of:
+	//   - `aud` contains our clientId (the JWT-standard audience check), or
+	//   - `azp` equals our clientId (Keycloak's typical OIDC code-grant claim).
+	//
+	// We don't pass `audience` to `jwtVerify` because Keycloak's default
+	// access token carries `aud: "account"` (the built-in account-mgmt
+	// client), not the dashboard client_id, unless an explicit Audience
+	// mapper is configured — enforcing it there would break every login.
+	// Instead we accept either signal, and reject when neither is present.
+	// This still blocks tokens minted for sibling clients in the realm
+	// (`smartlock-api`, `smartlock-lockers`, `nfc-scanner`) since they
+	// won't carry our clientId in either claim.
+	const aud = payload.aud;
+	const audIncludesUs =
+		aud === config.keycloak.clientId ||
+		(Array.isArray(aud) && aud.includes(config.keycloak.clientId));
+	const azpMatchesUs = payload.azp === config.keycloak.clientId;
+	if (!audIncludesUs && !azpMatchesUs) {
 		throw new Error(
-			`Token azp mismatch: expected ${config.keycloak.clientId}, got ${String(payload.azp)}`,
+			`Token not issued for this client: aud=${JSON.stringify(aud)}, azp=${String(payload.azp)}`,
 		);
 	}
 	return payload;
