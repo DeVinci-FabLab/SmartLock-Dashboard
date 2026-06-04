@@ -23,7 +23,7 @@ Tableau de bord interne pour la gestion des armoires connectées, des stocks, de
     - [Installation locale (sans Docker)](#installation-locale-sans-docker)
     - [Installation avec Docker](#installation-avec-docker)
     - [Préparation production (à venir)](#préparation-production-à-venir)
-  - [Commandes Make](#commandes-make)
+  - [Commandes Just](#commandes-just)
   - [Variables d'environnement](#variables-denvironnement)
   - [Documents de référence](#documents-de-référence)
   - [Licence](#licence)
@@ -122,7 +122,7 @@ Les décisions structurantes derrière ces choix sont résumées dans la section
 
 ## Structure du projet
 
-Le code applicatif est isolé dans `web/`. La racine ne contient que des éléments transverses (docs, Make, Docker, ignores). Cela permet d'ajouter facilement d'autres composants à côté plus tard (ex : `firmware/`, `infra/`, `docs/`) sans réorganiser.
+Le code applicatif est isolé dans `web/`. La racine ne contient que des éléments transverses (docs, justfile, Docker, ignores). Cela permet d'ajouter facilement d'autres composants à côté plus tard (ex : `firmware/`, `infra/`, `docs/`) sans réorganiser.
 
 ```plain
 .
@@ -154,7 +154,7 @@ Le code applicatif est isolé dans `web/`. La racine ne contient que des éléme
 │   └── .dockerignore        Lu par Docker au build (contexte = web/)
 ├── CDC.md                   Cahier des charges (besoins métier)
 ├── README.md                Ce fichier
-├── Makefile                 Commandes raccourcies (opère dans web/ via npm --prefix)
+├── justfile                 Commandes raccourcies (opère dans web/ via npm --prefix)
 ├── LICENSE
 └── .gitignore
 ```
@@ -183,19 +183,19 @@ Le **panneau tactile** sur armoire et un éventuel **affichage public vitrine** 
 
 ```bash
 # 1. Cloner et entrer dans le dossier
-git clone <url> SmartLock-Dashboard && cd SmartLock-Dashboard/draft-layout
+git clone <url> SmartLock-Dashboard && cd SmartLock-Dashboard
 
 # 2. Installer les dépendances
-make install
+just install
 
 # 3. Lancer en dev (http://localhost:5173)
-make dev
+just dev-local
 ```
 
 Ou via Docker (recommandé pour reproduire l'environnement) :
 
 ```bash
-make docker-dev
+just dev
 ```
 
 ## Installation détaillée
@@ -204,14 +204,14 @@ make docker-dev
 
 - **Node.js 22+** et **npm**
 - **Docker** + **Docker Compose v2** (optionnel mais recommandé)
-- **GNU Make** (préinstallé sur macOS/Linux ; Windows : via WSL ou Chocolatey)
+- **just** ([installation](https://github.com/casey/just?tab=readme-ov-file#installation) — `brew install just` sur macOS, `cargo install just` partout sinon)
 
 ### Installation locale (sans Docker)
 
 ```bash
-make install     # npm install
-make dev         # serveur de dev sur :5173
-make check       # vérification des types Svelte / TypeScript
+just install     # npm install
+just dev-local   # Vite dev server sur :5173 (sans conteneur)
+just check       # svelte-check (types)
 ```
 
 ### Installation avec Docker
@@ -219,19 +219,19 @@ make check       # vérification des types Svelte / TypeScript
 Le développement en conteneur garantit que tous les contributeurs travaillent avec la même version de Node, sans toucher leur installation locale. Le code est monté en bind mount, le HMR fonctionne normalement.
 
 ```bash
-make docker-dev          # build + up, attaché aux logs
-make docker-dev-detached # idem mais en arrière-plan
-make docker-logs         # suivre les logs du conteneur
-make docker-down         # arrêt
+just dev         # build + up détaché sur :5173 (recipe idempotente)
+just dev-logs    # suivre les logs du conteneur
+just stop        # arrêter dev + prod
 ```
 
 ### Production
 
-Le `docker/Dockerfile` de production utilise `@sveltejs/adapter-node` et tourne sur Node 22 alpine. Le `compose.prod.yaml` charge automatiquement `web/.env` côté host et expose un healthcheck `GET /health` (30s interval, 3 retries) que Docker / l'orchestrateur lisent.
+Le `docker/Dockerfile` de production utilise `@sveltejs/adapter-node` et tourne sur Node 22 alpine. Le `compose.prod.yaml` charge automatiquement `web/.env` côté host, applique le hardening (read_only, cap_drop ALL, no-new-privileges, init, non-root, limites mem/cpu/pids, log rotation) et expose un healthcheck `GET /health` (30s interval, 3 retries).
 
 ```bash
-make docker-prod         # build + up sur :3000 (attaché au network pangolin-fab)
-make docker-prod-down    # arrêt
+just prod        # build + up détaché sur 127.0.0.1:3000 (recipe idempotente)
+just prod-logs   # suivre les logs du conteneur
+just stop        # arrêter dev + prod
 ```
 
 Le conteneur expose `/health` qui retourne `{"status":"ok"}` — utilisé pour le healthcheck Docker et toute supervision externe.
@@ -239,34 +239,39 @@ Le conteneur expose `/health` qui retourne `{"status":"ok"}` — utilisé pour l
 ### Tests
 
 ```bash
-make check               # svelte-check (types)
-npm --prefix web test    # vitest unit
-npm --prefix web run test:e2e   # playwright + axe-core a11y smoke
-npm --prefix web run lint        # eslint
+just check       # svelte-check (types)
+just lint        # eslint
+just test        # vitest unit
+just test-e2e    # playwright + axe-core a11y smoke
+just ci          # tout enchaîné, fail-fast
 ```
 
 La suite E2E suppose le **dev bypass** (pas de `KEYCLOAK_ISSUER` dans `web/.env`). Sous Keycloak réel, les specs auth (armoires, items, stocks, roles, logs, home, palette, a11y des routes auth) sont skippées proprement avec un motif clair dans le rapport.
 
-## Commandes Make
+## Commandes Just
 
-`make help` (ou simplement `make`) affiche la liste complète. Résumé :
+`just` (sans argument) affiche le menu complet. Résumé :
 
-| Catégorie | Cible                 | Effet                                           |
-| --------- | --------------------- | ----------------------------------------------- |
-| Dev local | `install`             | Installe les dépendances npm                    |
-| Dev local | `dev`                 | Lance Vite sur `:5173`                          |
-| Dev local | `build`               | Build de production (requiert adapter-node)     |
-| Dev local | `preview`             | Sert le build de production localement          |
-| Dev local | `check`               | Vérifie le typage Svelte / TS                   |
-| Docker    | `docker-dev`          | Lance l'app en conteneur (HMR)                  |
-| Docker    | `docker-dev-detached` | Idem en arrière-plan                            |
-| Docker    | `docker-logs`         | Logs du conteneur de dev                        |
-| Docker    | `docker-down`         | Arrête le conteneur de dev                      |
-| Docker    | `docker-prod-build`   | Build l'image de production                     |
-| Docker    | `docker-prod`         | Lance la prod en arrière-plan                   |
-| Docker    | `docker-prod-down`    | Arrête la prod                                  |
-| Nettoyage | `clean`               | Supprime `node_modules`, `.svelte-kit`, `build` |
-| Nettoyage | `clean-docker`        | Supprime conteneurs, volumes et images locaux   |
+| Catégorie    | Recipe       | Effet                                                                 |
+| ------------ | ------------ | --------------------------------------------------------------------- |
+| Repo         | `update`     | `git pull --rebase`                                                   |
+| Repo         | `install`    | `npm install` dans `web/`                                             |
+| Dev local    | `dev-local`  | Vite dev server sur `:5173` (sans conteneur)                          |
+| Dev local    | `build`      | Build SvelteKit prod dans `web/build`                                 |
+| Dev local    | `preview`    | Sert le build prod localement                                         |
+| Qualité      | `check`      | svelte-check                                                          |
+| Qualité      | `lint`       | eslint                                                                |
+| Qualité      | `test`       | vitest unit                                                           |
+| Qualité      | `test-e2e`   | playwright + axe                                                      |
+| Qualité      | `ci`         | check + lint + test + test-e2e (fail-fast)                            |
+| Docker dev   | `dev`        | Tear-down + rebuild + up détaché sur `:5173`                          |
+| Docker dev   | `dev-logs`   | Logs du conteneur dev                                                 |
+| Docker prod  | `prod`       | Tear-down + rebuild + up détaché sur `127.0.0.1:3000` (image hardened)|
+| Docker prod  | `prod-logs`  | Logs du conteneur prod                                                |
+| Nettoyage    | `stop`       | Arrête dev + prod (volumes conservés)                                 |
+| Nettoyage    | `clean`      | Reset total — conteneurs, volumes, caches BuildKit, artefacts locaux  |
+
+`dev` et `prod` sont idempotents : chaque appel commence par `docker compose down -v --remove-orphans` avant le `up --build`, donc pas besoin de variantes `restart-*`.
 
 ## Variables d'environnement
 
