@@ -54,7 +54,11 @@ export async function verifyAccessToken(token: string): Promise<JWTPayload> {
 	const { payload } = await jwtVerify(token, jwks, {
 		issuer: config.keycloak.issuer,
 	});
-	if (payload.azp !== config.keycloak.clientId) {
+	// Per OIDC spec, `azp` is optional when a token has a single audience —
+	// Keycloak may omit it depending on client config. Only reject when it's
+	// present AND points at a different client (the foreign-client case we
+	// want to block). Absence is treated as "no information", not "mismatch".
+	if (payload.azp !== undefined && payload.azp !== config.keycloak.clientId) {
 		throw new Error(
 			`Token azp mismatch: expected ${config.keycloak.clientId}, got ${String(payload.azp)}`,
 		);
