@@ -1,4 +1,6 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Cookies } from '@sveltejs/kit';
+import { config } from '$lib/config';
 import type { UserContext } from './types';
 
 const SESSION_COOKIE = 'smartlock_session';
@@ -20,18 +22,43 @@ export interface Session {
 	codeVerifier?: string;
 }
 
+function sign(payload: string): string {
+	return createHmac('sha256', config.sessionSecret).update(payload).digest('base64url');
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+	const bufA = Buffer.from(a);
+	const bufB = Buffer.from(b);
+	if (bufA.length !== bufB.length) return false;
+	return timingSafeEqual(bufA, bufB);
+}
+
 export function readSession(cookies: Cookies): Session | null {
 	const raw = cookies.get(SESSION_COOKIE);
 	if (!raw) return null;
+	const parts = raw.split('.');
+	if (parts.length !== 2) return null;
+	const [payloadB64, sig] = parts;
+	let payload: string;
 	try {
-		return JSON.parse(raw) as Session;
+		payload = Buffer.from(payloadB64, 'base64url').toString('utf8');
+	} catch {
+		return null;
+	}
+	if (!payload) return null;
+	if (!constantTimeEqual(sig, sign(payload))) return null;
+	try {
+		return JSON.parse(payload) as Session;
 	} catch {
 		return null;
 	}
 }
 
 export function writeSession(cookies: Cookies, session: Session): void {
-	cookies.set(SESSION_COOKIE, JSON.stringify(session), COOKIE_OPTIONS);
+	const payload = JSON.stringify(session);
+	const payloadB64 = Buffer.from(payload, 'utf8').toString('base64url');
+	const sig = sign(payload);
+	cookies.set(SESSION_COOKIE, `${payloadB64}.${sig}`, COOKIE_OPTIONS);
 }
 
 export function clearSession(cookies: Cookies): void {

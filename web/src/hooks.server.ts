@@ -21,6 +21,15 @@ if (!dev && !config.keycloak.issuer) {
 	);
 }
 
+// Whenever Keycloak is configured (prod, or dev pointed at a real realm) the
+// session cookie carries a signed user payload — an unset/weak secret would
+// either crash on sign or accept forged cookies. Skip when dev-bypass applies.
+if (config.keycloak.issuer && config.sessionSecret.length < 32) {
+	throw new Error(
+		'FATAL: SESSION_SECRET must be at least 32 characters when Keycloak is configured. Generate one with `openssl rand -hex 32`.',
+	);
+}
+
 const PUBLIC_PATHS = ['/', '/login', '/login/callback', '/logout', '/health'];
 function isPublic(pathname: string): boolean {
 	return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
